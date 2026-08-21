@@ -225,13 +225,14 @@
                 <div class="bg-zinc-950/50 p-3.5 rounded-xl border border-zinc-800/80 space-y-2">
                   <div>
                     <label class="block text-xs font-semibold text-zinc-300 mb-1 flex items-center justify-between">
-                      <span>Késleltetés (Anti-Bot védelem)</span>
-                      <span id="delayLabel" class="text-[10px] text-emerald-400 font-mono">2.0 - 3.0 mp</span>
+                      <span>Késleltetés (Emberi tempó)</span>
+                      <span id="delayLabel" class="text-[10px] text-emerald-400 font-mono">3.0 - 5.0 mp</span>
                     </label>
                     <div class="grid grid-cols-2 gap-2">
-                      <input type="number" id="inputDelayMin" step="0.1" min="0.5" max="15" value="2.0" class="w-full px-2 py-1 bg-zinc-900 border border-zinc-700 rounded-lg text-xs text-center" title="Min késleltetés">
-                      <input type="number" id="inputDelayMax" step="0.1" min="1.0" max="20" value="3.0" class="w-full px-2 py-1 bg-zinc-900 border border-zinc-700 rounded-lg text-xs text-center" title="Max késleltetés">
+                      <input type="number" id="inputDelayMin" step="0.1" min="0.5" max="30" value="3.0" class="w-full px-2 py-1 bg-zinc-900 border border-zinc-700 rounded-lg text-xs text-center" title="Min késleltetés">
+                      <input type="number" id="inputDelayMax" step="0.1" min="1.0" max="30" value="5.0" class="w-full px-2 py-1 bg-zinc-900 border border-zinc-700 rounded-lg text-xs text-center" title="Max késleltetés">
                     </div>
+                    <span class="text-[10px] text-zinc-400">Biztonságos háttérben futás + 20 videónként pihenő.</span>
                   </div>
                   <div>
                     <label class="block text-xs font-semibold text-zinc-300 mb-1">Max videó darabszám (opcionális)</label>
@@ -991,8 +992,8 @@
         targetLanguage = document.getElementById('inputCustomTargetLang').value.trim() || 'original';
       }
 
-      const delayMin = parseFloat(document.getElementById('inputDelayMin').value) || 2.0;
-      const delayMax = parseFloat(document.getElementById('inputDelayMax').value) || 3.0;
+      const delayMin = parseFloat(document.getElementById('inputDelayMin').value) || 3.0;
+      const delayMax = parseFloat(document.getElementById('inputDelayMax').value) || 5.0;
       const includeTimestamps = document.getElementById('checkTimestamps').checked;
       const limitVal = document.getElementById('inputLimit').value.trim();
       const limit = limitVal ? parseInt(limitVal, 10) : null;
@@ -1116,7 +1117,11 @@
       }
       else if (type === "waiting") {
         document.getElementById('delayBanner').classList.remove('hidden');
-        document.getElementById('delayCountdown').innerText = `${data.delay_seconds} mp`;
+        if (data.is_batch_pause) {
+          document.getElementById('delayCountdown').innerText = `☕ Szakaszos pihenő: ${data.delay_seconds} mp`;
+        } else {
+          document.getElementById('delayCountdown').innerText = `${data.delay_seconds} mp`;
+        }
       }
       else if (type === "finished") {
         document.getElementById('delayBanner').classList.add('hidden');

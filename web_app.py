@@ -54,8 +54,8 @@ class DownloadRequest(BaseModel):
     format: str = "both"  # 'md', 'txt', 'both'
     languages: str = "hu,en"
     target_language: str = "original"  # 'original' (nincs fordítás), 'hu', 'en', 'de', stb.
-    delay_min: float = 2.0
-    delay_max: float = 3.0
+    delay_min: float = 3.0
+    delay_max: float = 5.0
     include_timestamps: bool = True
     limit: Optional[int] = None
     cookies_text: Optional[str] = None
@@ -296,12 +296,26 @@ def run_downloader_task(task_id: str, req: DownloadRequest, loop: asyncio.Abstra
 
             # Késleltetés a YouTube védelmi rendszerének elkerülésére (ha nem az utolsó videó)
             if index < total_videos and not task_info.get("cancelled", False):
-                delay_sec = random.uniform(req.delay_min, req.delay_max)
-                emit_event("waiting", {
-                    "delay_seconds": round(delay_sec, 2),
-                    "next_index": index + 1,
-                })
-                time.sleep(delay_sec)
+                if index % 20 == 0:
+                    pause_time = random.uniform(15.0, 22.0)
+                    emit_event("log", {
+                        "level": "info",
+                        "message": f"☕ Szakaszos pihenő fázis ({index} videó után): {round(pause_time, 1)} mp szünet a YouTube botvédelem megelőzésére..."
+                    })
+                    emit_event("waiting", {
+                        "delay_seconds": round(pause_time, 1),
+                        "next_index": index + 1,
+                        "is_batch_pause": True,
+                    })
+                    time.sleep(pause_time)
+                else:
+                    delay_sec = random.uniform(req.delay_min, req.delay_max)
+                    emit_event("waiting", {
+                        "delay_seconds": round(delay_sec, 2),
+                        "next_index": index + 1,
+                        "is_batch_pause": False,
+                    })
+                    time.sleep(delay_sec)
 
         # Jelentések mentése
         json_path = target_folder / "summary.json"

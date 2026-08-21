@@ -558,8 +558,10 @@ class TranscriptFetcher:
 
             if is_429:
                 if retry_count < max_retries:
-                    backoff = (2.5 ** (retry_count + 1)) + random.uniform(1.0, 2.5)
-                    time.sleep(backoff)
+                    cooldown_table = [15.0, 35.0, 60.0]
+                    cooldown = cooldown_table[min(retry_count, len(cooldown_table) - 1)] + random.uniform(1.5, 4.0)
+                    print(f"\n⏳ YouTube 429 forgalomlassítás észlelve -> {cooldown:.1f} mp hűtési szünet és automatikus újrapróbálkozás ({retry_count + 1}/{max_retries})...", file=sys.stderr)
+                    time.sleep(cooldown)
                     return self.get_transcript(video_id, retry_count=retry_count + 1, max_retries=max_retries)
 
                 result["status"] = "blocked"
@@ -789,7 +791,7 @@ class DownloaderEngine:
         self,
         output_dir: str = "transcripts_output",
         output_format: str = "both",  # 'txt', 'md', 'both'
-        delay_range: Tuple[float, float] = (2.0, 3.0),
+        delay_range: Tuple[float, float] = (3.0, 5.0),
         preferred_languages: Optional[List[str]] = None,
         target_language: Optional[str] = None,
         include_timestamps: bool = True,
@@ -840,7 +842,7 @@ class DownloaderEngine:
         print(f"🎯 Gyűjtemény neve: {collection_title}")
         print(f"📊 Összesen feldolgozandó videó: {total_videos} db")
         print(f"📁 Mentési mappa: {target_folder.resolve()}")
-        print(f"⏱️  Késleltetés kérések között: {self.delay_min:.1f} - {self.delay_max:.1f} mp")
+        print(f"⏱️  Késleltetés kérések között: {self.delay_min:.1f} - {self.delay_max:.1f} mp (Emberi ritmus & védelem)")
         if self.target_language and self.target_language.lower() not in ("original", "none", ""):
             print(f"🌐 Célnyelv / Fordítás: {TranscriptTranslator.get_language_name(self.target_language)} [{self.target_language}]")
         print()
@@ -958,8 +960,13 @@ class DownloaderEngine:
 
             # Késleltetés a következő kérés előtt (kivéve az utolsó videó után)
             if index < total_videos:
-                sleep_time = random.uniform(self.delay_min, self.delay_max)
-                time.sleep(sleep_time)
+                if index % 20 == 0:
+                    pause_time = random.uniform(15.0, 22.0)
+                    print(f"☕ Szakaszos pihenő fázis ({index} videó letöltve): {pause_time:.1f} mp szünet a YouTube botvédelem megelőzésére...")
+                    time.sleep(pause_time)
+                else:
+                    sleep_time = random.uniform(self.delay_min, self.delay_max)
+                    time.sleep(sleep_time)
 
         # Összefoglaló jelentés mentése
         self._save_summary_reports(target_folder, results_summary)
@@ -1131,8 +1138,8 @@ def parse_args():
     )
     parser.add_argument(
         "--delay",
-        default="2.0-3.0",
-        help="Kérések közötti késleltetési másodperctartomány (pl. '2.0-3.0', alapértelmezett: 2.0-3.0 mp)",
+        default="3.0-5.0",
+        help="Kérések közötti késleltetési másodperctartomány (pl. '3.0-5.0', alapértelmezett: 3.0-5.0 mp)",
     )
     parser.add_argument(
         "--no-timestamps",
