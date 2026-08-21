@@ -1,0 +1,1329 @@
+<!DOCTYPE html>
+<html lang="hu" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YouTube Átirat Letöltő (Transcript Downloader Pro)</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#fef2f2',
+              100: '#fee2e2',
+              500: '#ef4444',
+              600: '#dc2626',
+              700: '#b91c1c',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    @keyframes pulse-slow {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.85; transform: scale(0.98); }
+    }
+    .animate-pulse-slow {
+      animation: pulse-slow 2s infinite ease-in-out;
+    }
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: #18181b; }
+    ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #52525b; }
+  </style>
+</head>
+<body class="bg-zinc-950 text-zinc-100 min-h-screen flex flex-col font-sans antialiased selection:bg-red-500 selection:text-white relative">
+
+  <!-- Lebegő értesítés (Toast) -->
+  <div id="toast" class="fixed bottom-6 right-6 z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none bg-zinc-800 text-white border border-zinc-700 px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2.5 text-xs font-medium">
+    <i id="toastIcon" data-lucide="check-circle" class="w-4 h-4 text-emerald-400"></i>
+    <span id="toastMessage">Értesítés</span>
+  </div>
+
+  <!-- Fejléc -->
+  <header class="border-b border-zinc-800/80 bg-zinc-900/50 backdrop-blur sticky top-0 z-40">
+    <div class="max-w-6xl mx-auto px-4 py-3.5 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-red-600 to-rose-500 flex items-center justify-center shadow-lg shadow-red-500/20 text-white font-bold">
+          <i data-lucide="subtitles" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <h1 class="font-bold text-lg leading-tight tracking-tight text-white flex items-center gap-2">
+            YouTube Átirat Letöltő
+            <span class="text-[11px] font-medium bg-red-500/10 text-red-400 border border-red-500/20 px-2 py-0.5 rounded-full">v2.3 Pro</span>
+          </h1>
+          <p class="text-xs text-zinc-400">Videók, Lejátszási Listák és Csatornák átiratainak letöltése</p>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-2">
+        <button id="btnNavNew" onclick="showTab('tabNew')" class="px-3 py-1.5 text-xs font-medium rounded-lg bg-zinc-800 text-white transition flex items-center gap-1.5 border border-zinc-700/50">
+          <i data-lucide="plus-circle" class="w-4 h-4"></i> Új Letöltés
+        </button>
+        <button id="btnNavHistory" onclick="showTab('tabHistory'); loadHistory();" class="px-3 py-1.5 text-xs font-medium rounded-lg bg-zinc-900 text-zinc-400 hover:text-white hover:bg-zinc-800 transition flex items-center gap-1.5 border border-zinc-800">
+          <i data-lucide="folder-archive" class="w-4 h-4"></i> Mentett Gyűjtemények
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Fő tartalom -->
+  <main class="flex-1 max-w-6xl w-full mx-auto px-4 py-6">
+
+    <!-- 1. FÜL: Új letöltés / Munkaterület -->
+    <div id="tabNew" class="space-y-6">
+      
+      <!-- Sütik állapot sávja -->
+      <div id="cookieStatusBar" class="bg-zinc-900/60 border border-zinc-800/80 rounded-xl px-4 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+        <div class="flex items-center gap-2.5">
+          <i data-lucide="cookie" class="w-4 h-4 text-amber-400"></i>
+          <span class="font-medium text-zinc-300">Beépített YouTube Sütik:</span>
+          <span id="labelCookieStatusBadge" class="px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400 font-mono text-[11px]">Betöltés...</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <button type="button" onclick="toggleCookieManagerModal()" class="text-[11px] text-amber-400 hover:text-amber-300 font-medium flex items-center gap-1">
+            <i data-lucide="settings" class="w-3.5 h-3.5"></i> Sütikezelő megnyitása
+          </button>
+        </div>
+      </div>
+
+      <!-- Letöltési űrlap kártya -->
+      <div id="formCard" class="bg-zinc-900/60 border border-zinc-800/80 rounded-2xl p-5 md:p-6 shadow-xl relative overflow-hidden backdrop-blur-sm">
+        <div class="absolute -right-20 -top-20 w-64 h-64 bg-red-600/5 rounded-full blur-3xl pointer-events-none"></div>
+
+        <form id="downloadForm" onsubmit="startDownload(event)" class="space-y-5">
+          <div>
+            <label class="block text-sm font-semibold text-zinc-200 mb-2 flex items-center justify-between">
+              <span>YouTube Hivatkozás (URL)</span>
+              <span class="text-xs font-normal text-zinc-400">Videó, Lejátszási lista vagy @Csatorna link</span>
+            </label>
+            <div class="relative flex items-center">
+              <div class="absolute left-3.5 text-zinc-400">
+                <i data-lucide="youtube" class="w-5 h-5 text-red-500"></i>
+              </div>
+              <input
+                type="text"
+                id="inputUrl"
+                placeholder="pl. https://www.youtube.com/watch?v=... vagy https://www.youtube.com/playlist?list=..."
+                required
+                class="w-full pl-11 pr-24 py-3 bg-zinc-950/80 border border-zinc-700/70 focus:border-red-500 focus:ring-1 focus:ring-red-500 rounded-xl text-sm placeholder-zinc-500 transition outline-none"
+              >
+              <button
+                type="button"
+                onclick="pasteFromClipboard()"
+                class="absolute right-2 px-2.5 py-1.5 text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg transition flex items-center gap-1"
+                title="Beillesztés a vágólapról"
+              >
+                <i data-lucide="clipboard" class="w-3.5 h-3.5"></i> Beillesztés
+              </button>
+            </div>
+          </div>
+
+          <!-- Finomhangolási beállítások toggle -->
+          <div class="border-t border-zinc-800/80 pt-4">
+            <button
+              type="button"
+              onclick="toggleSettings()"
+              class="text-xs font-medium text-zinc-400 hover:text-zinc-200 flex items-center gap-1.5 transition select-none"
+            >
+              <i id="settingsChevron" data-lucide="chevron-right" class="w-4 h-4 transition-transform duration-200"></i>
+              <span>Részletes beállítások (Formátum, Nyelvek, Időbélyegek, Késleltetés)</span>
+            </button>
+
+            <div id="settingsPanel" class="hidden mt-4 space-y-4 pt-2">
+              
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <!-- Formátum választó -->
+                <div class="bg-zinc-950/50 p-3.5 rounded-xl border border-zinc-800/80">
+                  <label class="block text-xs font-semibold text-zinc-300 mb-2">Kimeneti Formátum</label>
+                  <div class="grid grid-cols-3 gap-1.5 text-xs">
+                    <label class="flex flex-col items-center justify-center p-2 rounded-lg border border-zinc-700/60 bg-zinc-900 cursor-pointer hover:border-zinc-500 transition has-[:checked]:border-red-500 has-[:checked]:bg-red-500/10">
+                      <input type="radio" name="format" value="both" checked class="hidden">
+                      <span class="font-medium">Mindkettő</span>
+                      <span class="text-[10px] text-zinc-400">.md + .txt</span>
+                    </label>
+                    <label class="flex flex-col items-center justify-center p-2 rounded-lg border border-zinc-700/60 bg-zinc-900 cursor-pointer hover:border-zinc-500 transition has-[:checked]:border-red-500 has-[:checked]:bg-red-500/10">
+                      <input type="radio" name="format" value="md" class="hidden">
+                      <span class="font-medium">Markdown</span>
+                      <span class="text-[10px] text-zinc-400">.md</span>
+                    </label>
+                    <label class="flex flex-col items-center justify-center p-2 rounded-lg border border-zinc-700/60 bg-zinc-900 cursor-pointer hover:border-zinc-500 transition has-[:checked]:border-red-500 has-[:checked]:bg-red-500/10">
+                      <input type="radio" name="format" value="txt" class="hidden">
+                      <span class="font-medium">Szöveges</span>
+                      <span class="text-[10px] text-zinc-400">.txt</span>
+                    </label>
+                  </div>
+                </div>
+
+                <!-- Nyelv és Időbélyeg -->
+                <div class="bg-zinc-950/50 p-3.5 rounded-xl border border-zinc-800/80 space-y-3">
+                  <div>
+                    <label class="block text-xs font-semibold text-zinc-300 mb-1">Preferált Nyelvek</label>
+                    <input
+                      type="text"
+                      id="inputLanguages"
+                      value="hu,en"
+                      placeholder="pl. hu,en,de"
+                      class="w-full px-2.5 py-1.5 bg-zinc-900 border border-zinc-700/70 rounded-lg text-xs outline-none focus:border-red-500"
+                    >
+                    <span class="text-[10px] text-zinc-400">Előbb magyar, majd angol, végül egyéb elérhető.</span>
+                  </div>
+                  <div class="flex items-center justify-between pt-1">
+                    <span class="text-xs font-medium text-zinc-300">Időbélyegek beillesztése</span>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" id="checkTimestamps" checked class="sr-only peer">
+                      <div class="w-9 h-5 bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-red-600"></div>
+                    </label>
+                  </div>
+                </div>
+
+                <!-- Késleltetés & Limit -->
+                <div class="bg-zinc-950/50 p-3.5 rounded-xl border border-zinc-800/80 space-y-2">
+                  <div>
+                    <label class="block text-xs font-semibold text-zinc-300 mb-1 flex items-center justify-between">
+                      <span>Késleltetés (Anti-Bot védelem)</span>
+                      <span id="delayLabel" class="text-[10px] text-emerald-400 font-mono">2.0 - 3.0 mp</span>
+                    </label>
+                    <div class="grid grid-cols-2 gap-2">
+                      <input type="number" id="inputDelayMin" step="0.1" min="0.5" max="15" value="2.0" class="w-full px-2 py-1 bg-zinc-900 border border-zinc-700 rounded-lg text-xs text-center" title="Min késleltetés">
+                      <input type="number" id="inputDelayMax" step="0.1" min="1.0" max="20" value="3.0" class="w-full px-2 py-1 bg-zinc-900 border border-zinc-700 rounded-lg text-xs text-center" title="Max késleltetés">
+                    </div>
+                  </div>
+                  <div>
+                    <label class="block text-xs font-semibold text-zinc-300 mb-1">Max videó darabszám (opcionális)</label>
+                    <input
+                      type="number"
+                      id="inputLimit"
+                      placeholder="Összes (üres)"
+                      min="1"
+                      class="w-full px-2.5 py-1.5 bg-zinc-900 border border-zinc-700/70 rounded-lg text-xs outline-none focus:border-red-500"
+                    >
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Indítás gomb -->
+          <div class="flex items-center justify-end pt-2">
+            <button
+              type="submit"
+              id="btnStart"
+              class="w-full sm:w-auto px-8 py-3 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-semibold rounded-xl shadow-lg shadow-red-600/30 transition transform active:scale-95 flex items-center justify-center gap-2"
+            >
+              <i data-lucide="play" class="w-4 h-4 fill-white"></i> Átiratok Kinyerése
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- 2. ÉLŐ FOLYAMATKÖVETŐ PANEL (Alapból rejtve) -->
+      <div id="livePanel" class="hidden space-y-5">
+        
+        <!-- Állapot és Progress kártya -->
+        <div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 md:p-6 shadow-xl space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-4">
+            <div>
+              <div class="flex items-center gap-2">
+                <span id="badgeStatus" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 animate-pulse">
+                  <i data-lucide="loader-2" class="w-3 h-3 animate-spin"></i> Feldolgozás alatt...
+                </span>
+                <span id="labelCollectionTitle" class="text-sm font-semibold text-white truncate max-w-md">Gyűjtemény beolvasása...</span>
+              </div>
+              <p id="labelCurrentVideo" class="text-xs text-zinc-400 mt-1 truncate">Kezdés előkészítése...</p>
+            </div>
+            
+            <div class="flex items-center gap-2">
+              <button
+                id="btnCancel"
+                onclick="cancelTask()"
+                class="px-3 py-1.5 text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg transition border border-zinc-700/60 flex items-center gap-1"
+              >
+                <i data-lucide="x" class="w-3.5 h-3.5"></i> Megszakítás
+              </button>
+              <button
+                id="btnDownloadZipTop"
+                onclick="downloadCurrentZip()"
+                disabled
+                class="px-4 py-1.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition shadow-lg shadow-emerald-600/20 flex items-center gap-1.5"
+              >
+                <i data-lucide="download" class="w-3.5 h-3.5"></i> ZIP Letöltése
+              </button>
+            </div>
+          </div>
+
+          <!-- Progress bar -->
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between text-xs text-zinc-400">
+              <span id="progressText">0 / 0 videó kész</span>
+              <span id="progressPercent" class="font-mono font-bold text-white">0%</span>
+            </div>
+            <div class="w-full h-3 bg-zinc-950 rounded-full overflow-hidden border border-zinc-800">
+              <div id="progressBar" class="h-full bg-gradient-to-r from-red-600 via-rose-500 to-emerald-500 w-0 transition-all duration-300"></div>
+            </div>
+          </div>
+
+          <!-- Késleltetés visszaszámláló infó -->
+          <div id="delayBanner" class="hidden text-xs bg-zinc-950/70 border border-zinc-800 rounded-lg p-2.5 flex items-center justify-between text-zinc-400">
+            <div class="flex items-center gap-2">
+              <i data-lucide="shield-check" class="w-4 h-4 text-emerald-400"></i>
+              <span>Anti-bot védelem aktív: szünet a következő videó előtt...</span>
+            </div>
+            <span id="delayCountdown" class="font-mono font-bold text-emerald-400">2.5 mp</span>
+          </div>
+
+          <!-- Figyelmeztető banner ha van YouTube 429 blokkolás -->
+          <div id="blockedAlertBanner" class="hidden bg-red-950/40 border border-red-800/80 rounded-xl p-3.5 text-xs text-red-200 flex items-start gap-3">
+            <i data-lucide="alert-octagon" class="w-5 h-5 text-red-400 shrink-0 mt-0.5"></i>
+            <div class="space-y-1.5">
+              <h4 class="font-bold text-red-300">A YouTube korlátozta a lekéréseket az IP címedről (HTTP 429 Too Many Requests)</h4>
+              <p class="text-zinc-300">
+                A videókhoz <b>van felirat</b>, de a YouTube robotvédelme blokkolta a letöltést.
+                <b>Megoldás:</b> Nyisd meg a Sütikezelőt, és tölts be YouTube sütiket (Chrome / Firefox / Brave vagy cookies.txt)!
+              </p>
+              <button onclick="toggleCookieManagerModal()" class="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-semibold rounded-lg text-xs flex items-center gap-1">
+                <i data-lucide="cookie" class="w-3.5 h-3.5"></i> Sütikezelő megnyitása
+              </button>
+            </div>
+          </div>
+
+          <!-- Számlálók (Összes, Sikeres, YouTube Blokk, Nincs felirat, Hiba) -->
+          <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-2">
+            <div class="bg-zinc-950/60 border border-zinc-800/80 p-3 rounded-xl">
+              <span class="text-[11px] text-zinc-400 font-medium">Összes videó</span>
+              <div id="countTotal" class="text-xl font-bold text-white mt-0.5">0</div>
+            </div>
+            <div class="bg-zinc-950/60 border border-emerald-900/30 p-3 rounded-xl">
+              <span class="text-[11px] text-emerald-400 font-medium flex items-center gap-1">
+                <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i> Sikeres
+              </span>
+              <div id="countSuccess" class="text-xl font-bold text-emerald-400 mt-0.5">0</div>
+            </div>
+            <div class="bg-zinc-950/60 border border-red-900/40 p-3 rounded-xl">
+              <span class="text-[11px] text-red-400 font-medium flex items-center gap-1">
+                <i data-lucide="shield-alert" class="w-3.5 h-3.5"></i> 429 Blokk
+              </span>
+              <div id="countBlocked" class="text-xl font-bold text-red-400 mt-0.5">0</div>
+            </div>
+            <div class="bg-zinc-950/60 border border-amber-900/30 p-3 rounded-xl">
+              <span class="text-[11px] text-amber-400 font-medium flex items-center gap-1">
+                <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i> Nincs átirat
+              </span>
+              <div id="countNoTranscript" class="text-xl font-bold text-amber-400 mt-0.5">0</div>
+            </div>
+            <div class="bg-zinc-950/60 border border-rose-900/30 p-3 rounded-xl">
+              <span class="text-[11px] text-rose-400 font-medium flex items-center gap-1">
+                <i data-lucide="x-circle" class="w-3.5 h-3.5"></i> Hibák
+              </span>
+              <div id="countError" class="text-xl font-bold text-rose-400 mt-0.5">0</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Eredmények és Táblázatok Fül -->
+        <div class="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden shadow-xl">
+          <!-- Al-fülek -->
+          <div class="border-b border-zinc-800 bg-zinc-950/40 px-4 flex space-x-2 text-xs font-semibold overflow-x-auto">
+            <button onclick="switchResultsTab('subSuccess')" id="btnSubSuccess" class="py-3 px-3 border-b-2 border-red-500 text-white flex items-center gap-1.5 transition shrink-0">
+              <i data-lucide="check" class="w-3.5 h-3.5 text-emerald-400"></i>
+              <span>Sikeres Átiratok</span>
+              <span id="tabBadgeSuccess" class="px-1.5 py-0.2 bg-zinc-800 text-[10px] rounded-full">0</span>
+            </button>
+            <button onclick="switchResultsTab('subBlocked')" id="btnSubBlocked" class="py-3 px-3 border-b-2 border-transparent text-zinc-400 hover:text-white flex items-center gap-1.5 transition shrink-0">
+              <i data-lucide="shield-alert" class="w-3.5 h-3.5 text-red-400"></i>
+              <span>YouTube által Blokkolt (429)</span>
+              <span id="tabBadgeBlocked" class="px-1.5 py-0.2 bg-zinc-800 text-[10px] rounded-full">0</span>
+            </button>
+            <button onclick="switchResultsTab('subMissing')" id="btnSubMissing" class="py-3 px-3 border-b-2 border-transparent text-zinc-400 hover:text-white flex items-center gap-1.5 transition shrink-0">
+              <i data-lucide="alert-circle" class="w-3.5 h-3.5 text-amber-400"></i>
+              <span>Valóban Felirat Nélküli</span>
+              <span id="tabBadgeMissing" class="px-1.5 py-0.2 bg-zinc-800 text-[10px] rounded-full">0</span>
+            </button>
+            <button onclick="switchResultsTab('subLogs')" id="btnSubLogs" class="py-3 px-3 border-b-2 border-transparent text-zinc-400 hover:text-white flex items-center gap-1.5 transition shrink-0">
+              <i data-lucide="terminal" class="w-3.5 h-3.5"></i>
+              <span>Élő Napló</span>
+            </button>
+          </div>
+
+          <!-- 1. Sikeres videók listája -->
+          <div id="subSuccess" class="p-4">
+            <div id="successList" class="space-y-2">
+              <p class="text-xs text-zinc-500 py-6 text-center">Még nincs feldolgozott videó.</p>
+            </div>
+          </div>
+
+          <!-- 2. Blokkolt videók listája -->
+          <div id="subBlocked" class="p-4 hidden">
+            <div id="blockedList" class="space-y-2">
+              <p class="text-xs text-zinc-500 py-6 text-center">Nincs YouTube által blokkolt videó.</p>
+            </div>
+          </div>
+
+          <!-- 3. Valóban hiányzó átiratok listája -->
+          <div id="subMissing" class="p-4 hidden">
+            <div id="missingList" class="space-y-2">
+              <p class="text-xs text-zinc-500 py-6 text-center">Nincs felirat nélküli videó.</p>
+            </div>
+          </div>
+
+          <!-- 4. Élő konzolos napló -->
+          <div id="subLogs" class="p-4 hidden">
+            <div id="logConsole" class="bg-zinc-950 font-mono text-xs p-3.5 rounded-xl border border-zinc-800 h-64 overflow-y-auto space-y-1 text-zinc-400">
+              <div>[Rendszer] Figyelő készen áll...</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- 2. FÜL: Mentett Gyűjtemények & Újraletöltés Hub -->
+    <div id="tabHistory" class="hidden space-y-5">
+      <div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 shadow-xl">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-zinc-800">
+          <div>
+            <h2 class="font-bold text-base text-white flex items-center gap-2">
+              <i data-lucide="folder-archive" class="w-5 h-5 text-red-500"></i> Mentett Gyűjtemények
+            </h2>
+            <p class="text-xs text-zinc-400">Már letöltött átiratok azonnali újraletöltése (ZIP), átiratok böngészése vagy 1-kattintásos újrafuttatása</p>
+          </div>
+          <button onclick="loadHistory()" class="px-3 py-1.5 text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg transition flex items-center gap-1 self-start sm:self-auto">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Frissítés
+          </button>
+        </div>
+
+        <div id="historyList" class="space-y-3">
+          <p class="text-xs text-zinc-500 py-8 text-center">Gyűjtemények betöltése...</p>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Lábjegyzet -->
+  <footer class="border-t border-zinc-900 py-4 text-center text-xs text-zinc-600">
+    YouTube Átirat Letöltő • Betűről betűre feldolgozás • Beépített Sütikezelés & Rate Limiting
+  </footer>
+
+  <!-- SÜTIKEZELŐ (COOKIE MANAGER) MODAL -->
+  <div id="cookieModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      <div class="px-5 py-3.5 border-b border-zinc-800 flex items-center justify-between bg-zinc-950/50">
+        <div class="flex items-center gap-2">
+          <i data-lucide="cookie" class="w-4 h-4 text-amber-400"></i>
+          <span class="text-sm font-semibold text-white">Beépített YouTube Sütikezelő</span>
+        </div>
+        <button onclick="toggleCookieManagerModal()" class="p-1 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-4 text-xs">
+        <!-- Aktuális állapot kártya -->
+        <div class="bg-zinc-950 p-3 rounded-xl border border-zinc-800 flex items-center justify-between">
+          <div>
+            <span class="text-zinc-400">Mentett sütik állapota:</span>
+            <div id="modalCookieStateText" class="font-semibold text-sm text-zinc-200 mt-0.5">Ellenőrzés...</div>
+          </div>
+          <button onclick="clearSavedCookies()" class="px-2.5 py-1 text-xs bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg transition flex items-center gap-1">
+            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Törlés
+          </button>
+        </div>
+
+        <!-- 1. Automatikus kinyerés böngészőből -->
+        <div class="space-y-2">
+          <label class="block font-semibold text-zinc-200">1. Kinyerés böngészőből (1 kattintás):</label>
+          <div class="grid grid-cols-3 sm:grid-cols-5 gap-1.5" id="browserButtonsContainer">
+            <button onclick="extractFromBrowser('chrome')" class="p-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg text-center font-medium border border-zinc-700/60 transition">Chrome</button>
+            <button onclick="extractFromBrowser('firefox')" class="p-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg text-center font-medium border border-zinc-700/60 transition">Firefox</button>
+            <button onclick="extractFromBrowser('safari')" class="p-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg text-center font-medium border border-zinc-700/60 transition">Safari</button>
+            <button onclick="extractFromBrowser('brave')" class="p-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg text-center font-medium border border-zinc-700/60 transition">Brave</button>
+            <button onclick="extractFromBrowser('edge')" class="p-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg text-center font-medium border border-zinc-700/60 transition">Edge</button>
+          </div>
+          <p class="text-[11px] text-zinc-500">Automatikusan beolvassa a bejelentkezett YouTube sütiket a megadott böngésződből.</p>
+        </div>
+
+        <!-- 2. Manuális feltöltés vagy beillesztés -->
+        <div class="space-y-2 pt-2 border-t border-zinc-800">
+          <label class="block font-semibold text-zinc-200">2. Vagy tölts fel / másolj be egy cookies.txt fájlt:</label>
+          <input
+            type="file"
+            accept=".txt"
+            onchange="handleModalCookieUpload(event)"
+            class="block w-full text-xs text-zinc-400 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-zinc-800 file:text-zinc-200 hover:file:bg-zinc-700 cursor-pointer"
+          >
+          <textarea
+            id="modalCookieTextarea"
+            rows="3"
+            placeholder="# Netscape HTTP Cookie File tartalom beillesztése..."
+            class="w-full p-2 bg-zinc-950 font-mono text-[11px] text-zinc-300 border border-zinc-800 rounded-lg outline-none focus:border-amber-500"
+          ></textarea>
+          <button
+            onclick="saveModalCookieText()"
+            class="w-full py-2 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-semibold rounded-lg transition flex items-center justify-center gap-1.5"
+          >
+            <i data-lucide="save" class="w-4 h-4"></i> Sütik Mentése
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ÁTIRAT ELŐNÉZET MODAL -->
+  <div id="previewModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      <div class="px-5 py-3.5 border-b border-zinc-800 flex items-center justify-between bg-zinc-950/50">
+        <div class="flex items-center gap-2 truncate">
+          <i data-lucide="file-text" class="w-4 h-4 text-red-400"></i>
+          <span id="previewModalTitle" class="text-sm font-semibold text-white truncate">Átirat Előnézet</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="copyModalContent()" class="px-2.5 py-1 text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg transition flex items-center gap-1">
+            <i data-lucide="copy" class="w-3.5 h-3.5"></i> Másolás
+          </button>
+          <button onclick="closePreviewModal()" class="p-1 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+      </div>
+      <div class="p-5 flex-1 overflow-y-auto font-mono text-xs text-zinc-300 leading-relaxed whitespace-pre-wrap selection:bg-red-600 bg-zinc-950/30" id="previewModalBody">
+        Betöltés...
+      </div>
+    </div>
+  </div>
+
+  <!-- JavaScript Logika -->
+  <script>
+    let currentTaskId = null;
+    let eventSource = null;
+    let successfulVideos = [];
+    let blockedVideos = [];
+    let missingVideos = [];
+
+    // Ikonok inicializálása
+    lucide.createIcons();
+    fetchCookieStatus();
+
+    function showToast(message, isSuccess = true) {
+      const toast = document.getElementById('toast');
+      const msgEl = document.getElementById('toastMessage');
+      const iconEl = document.getElementById('toastIcon');
+      msgEl.innerText = message;
+      if (isSuccess) {
+        iconEl.setAttribute('data-lucide', 'check-circle');
+        iconEl.className = "w-4 h-4 text-emerald-400";
+      } else {
+        iconEl.setAttribute('data-lucide', 'alert-circle');
+        iconEl.className = "w-4 h-4 text-rose-400";
+      }
+      lucide.createIcons();
+      toast.classList.remove('translate-y-20', 'opacity-0');
+      toast.classList.add('translate-y-0', 'opacity-100');
+      setTimeout(() => {
+        toast.classList.remove('translate-y-0', 'opacity-100');
+        toast.classList.add('translate-y-20', 'opacity-0');
+      }, 3000);
+    }
+
+    function copyTextToClipboard(text, successMsg = "Vágólapra másolva!") {
+      if (!text) return;
+      navigator.clipboard.writeText(text).then(() => {
+        showToast(successMsg, true);
+      }).catch(err => {
+        showToast("Nem sikerült a másolás: " + err.message, false);
+      });
+    }
+
+    function showTab(tabId) {
+      document.getElementById('tabNew').classList.add('hidden');
+      document.getElementById('tabHistory').classList.add('hidden');
+      document.getElementById(tabId).classList.remove('hidden');
+
+      if (tabId === 'tabNew') {
+        document.getElementById('btnNavNew').className = "px-3 py-1.5 text-xs font-medium rounded-lg bg-zinc-800 text-white transition flex items-center gap-1.5 border border-zinc-700/50";
+        document.getElementById('btnNavHistory').className = "px-3 py-1.5 text-xs font-medium rounded-lg bg-zinc-900 text-zinc-400 hover:text-white hover:bg-zinc-800 transition flex items-center gap-1.5 border border-zinc-800";
+      } else {
+        document.getElementById('btnNavHistory').className = "px-3 py-1.5 text-xs font-medium rounded-lg bg-zinc-800 text-white transition flex items-center gap-1.5 border border-zinc-700/50";
+        document.getElementById('btnNavNew').className = "px-3 py-1.5 text-xs font-medium rounded-lg bg-zinc-900 text-zinc-400 hover:text-white hover:bg-zinc-800 transition flex items-center gap-1.5 border border-zinc-800";
+      }
+    }
+
+    function switchResultsTab(tabId) {
+      ['subSuccess', 'subBlocked', 'subMissing', 'subLogs'].forEach(id => {
+        document.getElementById(id).classList.add('hidden');
+      });
+      document.getElementById(tabId).classList.remove('hidden');
+
+      const btnMap = {
+        subSuccess: 'btnSubSuccess',
+        subBlocked: 'btnSubBlocked',
+        subMissing: 'btnSubMissing',
+        subLogs: 'btnSubLogs'
+      };
+
+      Object.keys(btnMap).forEach(key => {
+        const btn = document.getElementById(btnMap[key]);
+        if (key === tabId) {
+          btn.className = "py-3 px-3 border-b-2 border-red-500 text-white flex items-center gap-1.5 transition shrink-0";
+        } else {
+          btn.className = "py-3 px-3 border-b-2 border-transparent text-zinc-400 hover:text-white flex items-center gap-1.5 transition shrink-0";
+        }
+      });
+    }
+
+    function toggleSettings() {
+      const panel = document.getElementById('settingsPanel');
+      const chevron = document.getElementById('settingsChevron');
+      panel.classList.toggle('hidden');
+      if (panel.classList.contains('hidden')) {
+        chevron.style.transform = 'rotate(0deg)';
+      } else {
+        chevron.style.transform = 'rotate(90deg)';
+      }
+    }
+
+    function toggleCookieManagerModal() {
+      const modal = document.getElementById('cookieModal');
+      modal.classList.toggle('hidden');
+      if (!modal.classList.contains('hidden')) {
+        fetchCookieStatus();
+      }
+    }
+
+    async function fetchCookieStatus() {
+      try {
+        const resp = await fetch('/api/cookies/status');
+        const data = await resp.json();
+        const badge = document.getElementById('labelCookieStatusBadge');
+        const modalText = document.getElementById('modalCookieStateText');
+
+        if (data.has_cookies) {
+          badge.className = "px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono text-[11px] flex items-center gap-1";
+          badge.innerHTML = `<i data-lucide="check" class="w-3 h-3"></i> Aktív (${data.cookie_count} süti)`;
+          modalText.innerHTML = `<span class="text-emerald-400 font-medium">✅ Aktív (${data.cookie_count} süti mentve • Frissítve: ${data.updated_at || "nemrég"})</span>`;
+        } else {
+          badge.className = "px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400 border border-zinc-700/60 font-mono text-[11px]";
+          badge.innerHTML = `Nincsenek mentett sütik`;
+          modalText.innerHTML = `<span class="text-zinc-400">Nincsenek mentve sütik (a YouTube HTTP 429 hibát adhat nagy listáknál).</span>`;
+        }
+        lucide.createIcons();
+      } catch (e) {
+        console.warn("Cookie status error:", e);
+      }
+    }
+
+    async function extractFromBrowser(browser) {
+      const modalText = document.getElementById('modalCookieStateText');
+      modalText.innerHTML = `<span class="text-amber-400 animate-pulse">Sütik kinyerése a(z) ${browser} böngészőből...</span>`;
+      try {
+        const resp = await fetch('/api/cookies/from-browser', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ browser: browser })
+        });
+        const data = await resp.json();
+        if (resp.ok) {
+          showToast(data.message || "Sütik sikeresen mentve!", true);
+          fetchCookieStatus();
+        } else {
+          showToast("Hiba: " + (data.detail || "Nem sikerült a sütik kinyerése."), false);
+          fetchCookieStatus();
+        }
+      } catch (err) {
+        showToast("Hiba: " + err.message, false);
+        fetchCookieStatus();
+      }
+    }
+
+    function handleModalCookieUpload(event) {
+      const file = event.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          document.getElementById('modalCookieTextarea').value = e.target.result;
+        };
+        reader.readAsText(file);
+      }
+    }
+
+    async function saveModalCookieText() {
+      const text = document.getElementById('modalCookieTextarea').value.trim();
+      if (!text) {
+        showToast("Kérlek illeszd be a süti szöveget vagy tölts fel egy cookies.txt fájlt!", false);
+        return;
+      }
+      try {
+        const resp = await fetch('/api/cookies/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cookies_text: text })
+        });
+        if (resp.ok) {
+          showToast("Sütik sikeresen elmentve alapértelmezettként!", true);
+          fetchCookieStatus();
+          toggleCookieManagerModal();
+        } else {
+          showToast("Hiba a mentés során.", false);
+        }
+      } catch (e) {
+        showToast("Hiba: " + e.message, false);
+      }
+    }
+
+    async function clearSavedCookies() {
+      if (confirm("Biztosan törölni szeretnéd a mentett YouTube sütiket?")) {
+        try {
+          await fetch('/api/cookies/clear', { method: 'POST' });
+          fetchCookieStatus();
+          showToast("Sütik törölve.", true);
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    }
+
+    async function pasteFromClipboard() {
+      try {
+        const text = await navigator.clipboard.readText();
+        if (text) {
+          document.getElementById('inputUrl').value = text.trim();
+          showToast("Link beillesztve!", true);
+        }
+      } catch (err) {
+        console.warn("Clipboard read error:", err);
+      }
+    }
+
+    async function startDownload(e) {
+      if (e) e.preventDefault();
+      const url = document.getElementById('inputUrl').value.trim();
+      if (!url) return;
+
+      const format = document.querySelector('input[name="format"]:checked').value;
+      const languages = document.getElementById('inputLanguages').value.trim() || "hu,en";
+      const delayMin = parseFloat(document.getElementById('inputDelayMin').value) || 2.0;
+      const delayMax = parseFloat(document.getElementById('inputDelayMax').value) || 3.0;
+      const includeTimestamps = document.getElementById('checkTimestamps').checked;
+      const limitVal = document.getElementById('inputLimit').value.trim();
+      const limit = limitVal ? parseInt(limitVal, 10) : null;
+
+      // UI reset
+      successfulVideos = [];
+      blockedVideos = [];
+      missingVideos = [];
+      document.getElementById('successList').innerHTML = '';
+      document.getElementById('blockedList').innerHTML = '';
+      document.getElementById('missingList').innerHTML = '';
+      document.getElementById('logConsole').innerHTML = '';
+      document.getElementById('countTotal').innerText = '0';
+      document.getElementById('countSuccess').innerText = '0';
+      document.getElementById('countBlocked').innerText = '0';
+      document.getElementById('countNoTranscript').innerText = '0';
+      document.getElementById('countError').innerText = '0';
+      document.getElementById('progressBar').style.width = '0%';
+      document.getElementById('progressPercent').innerText = '0%';
+      document.getElementById('progressText').innerText = 'Előkészítés...';
+      document.getElementById('btnDownloadZipTop').disabled = true;
+      document.getElementById('btnDownloadZipTop').innerHTML = '<i data-lucide="download" class="w-3.5 h-3.5"></i> ZIP Letöltése';
+      document.getElementById('blockedAlertBanner').classList.add('hidden');
+
+      document.getElementById('livePanel').classList.remove('hidden');
+      document.getElementById('badgeStatus').className = "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 animate-pulse";
+      document.getElementById('badgeStatus').innerHTML = '<i data-lucide="loader-2" class="w-3 h-3 animate-spin"></i> Feldolgozás alatt...';
+      lucide.createIcons();
+
+      try {
+        const resp = await fetch('/api/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: url,
+            format: format,
+            languages: languages,
+            delay_min: delayMin,
+            delay_max: delayMax,
+            include_timestamps: includeTimestamps,
+            limit: limit
+          })
+        });
+
+        const data = await resp.json();
+        if (!resp.ok) {
+          showToast("Hiba: " + (data.detail || "Nem sikerült elindítani a letöltést"), false);
+          return;
+        }
+
+        currentTaskId = data.task_id;
+        connectSSE(currentTaskId);
+      } catch (err) {
+        showToast("Hálózati hiba a letöltés indításakor: " + err.message, false);
+      }
+    }
+
+    function connectSSE(taskId) {
+      if (eventSource) {
+        eventSource.close();
+      }
+
+      eventSource = new EventSource(`/api/progress/${taskId}`);
+
+      eventSource.onmessage = function(e) {
+        if (!e.data || e.data.trim() === ": ping") return;
+        const msg = JSON.parse(e.data);
+        handleStreamEvent(msg);
+      };
+
+      eventSource.onerror = function(err) {
+        console.warn("SSE kapcsolat megszakadt:", err);
+      };
+    }
+
+    function handleStreamEvent(event) {
+      const type = event.type;
+      const data = event.data;
+
+      appendLog(type, data);
+
+      if (type === "info_extracted") {
+        document.getElementById('labelCollectionTitle').innerText = data.collection_title || "YouTube Videók";
+        document.getElementById('countTotal').innerText = data.total_videos;
+        document.getElementById('progressText').innerText = `0 / ${data.total_videos} videó kész`;
+      }
+      else if (type === "video_started") {
+        document.getElementById('labelCurrentVideo').innerText = `[${data.index}/${data.total}] ${data.title}`;
+        document.getElementById('delayBanner').classList.add('hidden');
+      }
+      else if (type === "video_completed") {
+        const vid = data.video;
+        document.getElementById('progressBar').style.width = `${data.progress}%`;
+        document.getElementById('progressPercent').innerText = `${data.progress}%`;
+        document.getElementById('progressText').innerText = `${data.index} / ${data.total} videó kész`;
+
+        if (data.status === "success") {
+          successfulVideos.push(vid);
+          document.getElementById('countSuccess').innerText = successfulVideos.length;
+          document.getElementById('tabBadgeSuccess').innerText = successfulVideos.length;
+          renderSuccessCard(vid);
+        } else if (data.status === "blocked") {
+          blockedVideos.push(vid);
+          document.getElementById('countBlocked').innerText = blockedVideos.length;
+          document.getElementById('tabBadgeBlocked').innerText = blockedVideos.length;
+          document.getElementById('blockedAlertBanner').classList.remove('hidden');
+          renderBlockedCard(vid);
+        } else if (data.status === "no_transcript") {
+          missingVideos.push(vid);
+          document.getElementById('countNoTranscript').innerText = missingVideos.length;
+          document.getElementById('tabBadgeMissing').innerText = missingVideos.length;
+          renderMissingCard(vid);
+        } else if (data.status === "error") {
+          const countErr = parseInt(document.getElementById('countError').innerText, 10) + 1;
+          document.getElementById('countError').innerText = countErr;
+          renderMissingCard(vid);
+        }
+      }
+      else if (type === "waiting") {
+        document.getElementById('delayBanner').classList.remove('hidden');
+        document.getElementById('delayCountdown').innerText = `${data.delay_seconds} mp`;
+      }
+      else if (type === "finished") {
+        document.getElementById('delayBanner').classList.add('hidden');
+        document.getElementById('progressBar').style.width = `100%`;
+        document.getElementById('progressPercent').innerText = `100%`;
+        document.getElementById('badgeStatus').className = "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
+        document.getElementById('badgeStatus').innerHTML = '<i data-lucide="check-circle" class="w-3 h-3"></i> Befejezve';
+        document.getElementById('btnDownloadZipTop').disabled = false;
+        document.getElementById('labelCurrentVideo').innerText = "Minden videó feldolgozása befejeződött!";
+        lucide.createIcons();
+        if (eventSource) eventSource.close();
+      }
+      else if (type === "error") {
+        document.getElementById('badgeStatus').className = "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-500/10 text-rose-400 border border-rose-500/20";
+        document.getElementById('badgeStatus').innerHTML = '<i data-lucide="alert-octagon" class="w-3 h-3"></i> Hiba történt';
+        document.getElementById('labelCurrentVideo').innerText = data.message || "Hiba";
+        lucide.createIcons();
+        if (eventSource) eventSource.close();
+      }
+    }
+
+    function renderSuccessCard(vid) {
+      const container = document.getElementById('successList');
+      if (successfulVideos.length === 1) {
+        container.innerHTML = '';
+      }
+
+      const typeLabel = vid.is_generated ? "🤖 Auto felirat" : "✍️ Kézi felirat";
+      const langText = vid.language || vid.language_code || "Ismeretlen";
+
+      const card = document.createElement('div');
+      card.className = "bg-zinc-950/70 border border-zinc-800 hover:border-zinc-700 p-3.5 rounded-xl flex items-center justify-between gap-3 transition";
+
+      const primaryFile = (vid.files && vid.files.length > 0) ? vid.files[0] : null;
+
+      card.innerHTML = `
+        <div class="flex items-center gap-3 truncate">
+          <div class="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-bold text-xs shrink-0">
+            #${vid.index}
+          </div>
+          <div class="truncate">
+            <a href="${vid.url}" target="_blank" class="text-xs font-semibold text-white hover:text-red-400 truncate block">
+              ${vid.title}
+            </a>
+            <div class="flex items-center gap-2 mt-0.5 text-[11px] text-zinc-400">
+              <span class="px-1.5 py-0.2 rounded bg-zinc-800 text-zinc-300 font-mono">${vid.id}</span>
+              <span>•</span>
+              <span class="text-emerald-400/90">${typeLabel}</span>
+              <span>•</span>
+              <span>${langText}</span>
+            </div>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          ${primaryFile ? `
+            <button onclick="previewFile('${encodeURIComponent(primaryFile)}', '${encodeURIComponent(vid.title)}')" class="px-2.5 py-1 text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg transition flex items-center gap-1">
+              <i data-lucide="eye" class="w-3.5 h-3.5"></i> Megtekintés
+            </button>
+          ` : ''}
+          <button onclick="copyTextToClipboard('${vid.url}', 'Videó link másolva!')" class="p-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded-lg transition" title="Videó link másolása">
+            <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+          </button>
+          <a href="${vid.url}" target="_blank" class="p-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded-lg transition" title="Megnyitás YouTube-on">
+            <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+          </a>
+        </div>
+      `;
+      container.appendChild(card);
+      lucide.createIcons();
+    }
+
+    function renderBlockedCard(vid) {
+      const container = document.getElementById('blockedList');
+      if (blockedVideos.length === 1) {
+        container.innerHTML = '';
+      }
+
+      const card = document.createElement('div');
+      card.className = "bg-red-950/20 border border-red-900/40 hover:border-red-700/60 p-3.5 rounded-xl flex items-center justify-between gap-3 transition";
+
+      card.innerHTML = `
+        <div class="flex items-center gap-3 truncate">
+          <div class="w-8 h-8 rounded-lg bg-red-500/10 text-red-400 flex items-center justify-center font-bold text-xs shrink-0">
+            #${vid.index}
+          </div>
+          <div class="truncate">
+            <a href="${vid.url}" target="_blank" class="text-xs font-semibold text-white hover:text-red-400 truncate block">
+              ${vid.title}
+            </a>
+            <div class="text-[11px] text-red-300 mt-0.5 flex items-center gap-1.5 truncate">
+              <i data-lucide="shield-alert" class="w-3.5 h-3.5 shrink-0 text-red-400"></i>
+              <span class="truncate">YouTube 429 Blokk: A felirat létezik, de a letöltéshez sütik (cookies.txt) szükségesek.</span>
+            </div>
+          </div>
+        </div>
+        <div class="shrink-0 flex items-center gap-1.5">
+          <button onclick="copyTextToClipboard('${vid.url}', 'Videó link másolva!')" class="p-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg transition" title="Link másolása">
+            <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+          </button>
+          <a href="${vid.url}" target="_blank" class="px-2.5 py-1 text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg transition flex items-center gap-1">
+            <i data-lucide="external-link" class="w-3.5 h-3.5"></i> YouTube
+          </a>
+        </div>
+      `;
+      container.appendChild(card);
+      lucide.createIcons();
+    }
+
+    function renderMissingCard(vid) {
+      const container = document.getElementById('missingList');
+      if (missingVideos.length === 1) {
+        container.innerHTML = '';
+      }
+
+      const card = document.createElement('div');
+      card.className = "bg-zinc-950/70 border border-amber-900/30 hover:border-amber-700/50 p-3.5 rounded-xl flex items-center justify-between gap-3 transition";
+
+      card.innerHTML = `
+        <div class="flex items-center gap-3 truncate">
+          <div class="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center font-bold text-xs shrink-0">
+            #${vid.index}
+          </div>
+          <div class="truncate">
+            <a href="${vid.url}" target="_blank" class="text-xs font-semibold text-white hover:text-amber-400 truncate block">
+              ${vid.title}
+            </a>
+            <div class="text-[11px] text-amber-400/90 mt-0.5 flex items-center gap-1.5 truncate">
+              <i data-lucide="alert-triangle" class="w-3.5 h-3.5 shrink-0"></i>
+              <span class="truncate">Ok: ${vid.reason || "Nincs felirat"}</span>
+            </div>
+          </div>
+        </div>
+        <div class="shrink-0 flex items-center gap-1.5">
+          <button onclick="copyTextToClipboard('${vid.url}', 'Videó link másolva!')" class="p-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg transition" title="Link másolása">
+            <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+          </button>
+          <a href="${vid.url}" target="_blank" class="px-2.5 py-1 text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg transition flex items-center gap-1">
+            <i data-lucide="external-link" class="w-3.5 h-3.5"></i> YouTube
+          </a>
+        </div>
+      `;
+      container.appendChild(card);
+      lucide.createIcons();
+    }
+
+    function appendLog(type, data) {
+      const consoleEl = document.getElementById('logConsole');
+      const timeStr = new Date().toLocaleTimeString();
+      let logLine = `[${timeStr}] ${type}: ${JSON.stringify(data)}`;
+      if (type === "video_started") {
+        logLine = `[${timeStr}] ⏳ Lekérés: [${data.index}/${data.total}] ${data.title}`;
+      } else if (type === "video_completed") {
+        if (data.status === 'success') logLine = `[${timeStr}] ✅ SIKER: ${data.video.title}`;
+        else if (data.status === 'blocked') logLine = `[${timeStr}] 🚫 YOUTUBE BLOKK (429): ${data.video.title}`;
+        else logLine = `[${timeStr}] ⚠️ NINCS ÁTIRAT: ${data.video.title}`;
+      } else if (type === "waiting") {
+        logLine = `[${timeStr}] ⏱️ Anti-bot szünet: ${data.delay_seconds} másodperc...`;
+      } else if (type === "finished") {
+        logLine = `[${timeStr}] 🎉 A feldolgozás befejeződött!`;
+      }
+
+      const div = document.createElement('div');
+      div.innerText = logLine;
+      consoleEl.appendChild(div);
+      consoleEl.scrollTop = consoleEl.scrollHeight;
+    }
+
+    async function cancelTask() {
+      if (!currentTaskId) return;
+      if (confirm("Biztosan meg akarod szakítani a letöltési folyamatot?")) {
+        try {
+          await fetch(`/api/cancel/${currentTaskId}`, { method: 'POST' });
+          showToast("Megszakítás elküldve.");
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    }
+
+    function downloadCurrentZip() {
+      if (!currentTaskId) return;
+      const btn = document.getElementById('btnDownloadZipTop');
+      btn.innerHTML = '<i data-lucide="check-check" class="w-3.5 h-3.5"></i> ZIP Letöltve';
+      lucide.createIcons();
+      window.location.href = `/api/download-zip/${currentTaskId}`;
+      showToast("ZIP letöltése elindult!");
+    }
+
+    async function previewFile(encodedPath, encodedTitle) {
+      const path = decodeURIComponent(encodedPath);
+      const title = decodeURIComponent(encodedTitle);
+      document.getElementById('previewModalTitle').innerText = title;
+      document.getElementById('previewModalBody').innerText = "Betöltés...";
+      document.getElementById('previewModal').classList.remove('hidden');
+
+      try {
+        const resp = await fetch(`/api/file-content?path=${encodeURIComponent(path)}`);
+        const data = await resp.json();
+        if (resp.ok) {
+          document.getElementById('previewModalBody').innerText = data.content;
+        } else {
+          document.getElementById('previewModalBody').innerText = "Hiba a fájl megnyitásakor: " + data.detail;
+        }
+      } catch (err) {
+        document.getElementById('previewModalBody').innerText = "Hiba: " + err.message;
+      }
+    }
+
+    function closePreviewModal() {
+      document.getElementById('previewModal').classList.add('hidden');
+    }
+
+    function copyModalContent() {
+      const text = document.getElementById('previewModalBody').innerText;
+      copyTextToClipboard(text, "Teljes átirat másolva a vágólapra!");
+    }
+
+    // ==================== GYŰJTEMÉNYEK & ELŐZMÉNYEK HUB ====================
+
+    async function loadHistory() {
+      const container = document.getElementById('historyList');
+      container.innerHTML = '<p class="text-xs text-zinc-500 py-4 text-center">Betöltés...</p>';
+
+      try {
+        const resp = await fetch('/api/history');
+        const data = await resp.json();
+        const history = data.history || [];
+
+        if (history.length === 0) {
+          container.innerHTML = '<p class="text-xs text-zinc-500 py-8 text-center">Még nincsenek mentett gyűjtemények.</p>';
+          return;
+        }
+
+        container.innerHTML = '';
+        history.forEach((item, idx) => {
+          const isDownloaded = item.zip_downloaded;
+          const downloadBadge = isDownloaded
+            ? `<span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full text-[10px] font-semibold flex items-center gap-1"><i data-lucide="check-check" class="w-3 h-3"></i> ZIP Letöltve (${item.zip_downloaded_at ? item.zip_downloaded_at.slice(5, 16) : 'korábban'})</span>`
+            : `<span class="bg-zinc-800 text-zinc-400 border border-zinc-700/60 px-2 py-0.5 rounded-full text-[10px] font-medium flex items-center gap-1"><i data-lucide="package" class="w-3 h-3"></i> Új (Még nem letöltve)</span>`;
+
+          const card = document.createElement('div');
+          card.className = "bg-zinc-950/70 border border-zinc-800 hover:border-zinc-700/80 p-4 rounded-xl space-y-3 transition";
+          
+          card.innerHTML = `
+            <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+              <div class="space-y-1.5 flex-1 min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <h3 class="text-sm font-bold text-white tracking-tight truncate">${item.collection_title}</h3>
+                  ${downloadBadge}
+                </div>
+
+                <!-- Kattintható és másolható YouTube Forrás URL -->
+                ${item.url ? `
+                  <div class="flex items-center gap-1.5 text-xs text-zinc-400 bg-zinc-900/90 px-2.5 py-1 rounded-lg border border-zinc-800 max-w-full sm:max-w-xl">
+                    <i data-lucide="youtube" class="w-3.5 h-3.5 text-red-500 shrink-0"></i>
+                    <a href="${item.url}" target="_blank" class="text-red-400 hover:text-red-300 font-mono text-[11px] truncate flex-1 block" title="Megnyitás YouTube-on">
+                      ${item.url}
+                    </a>
+                    <button onclick="copyTextToClipboard('${item.url}', 'YouTube forráslink másolva!')" class="p-1 text-zinc-400 hover:text-white rounded hover:bg-zinc-800 transition shrink-0" title="Link másolása a vágólapra">
+                      <i data-lucide="copy" class="w-3 h-3"></i>
+                    </button>
+                    <a href="${item.url}" target="_blank" class="p-1 text-zinc-400 hover:text-white rounded hover:bg-zinc-800 transition shrink-0" title="Megnyitás új lapon">
+                      <i data-lucide="external-link" class="w-3 h-3"></i>
+                    </a>
+                  </div>
+                ` : ''}
+
+                <div class="flex items-center gap-3 text-xs text-zinc-400 mt-1 flex-wrap">
+                  <span>📅 ${item.processed_at || "N/A"}</span>
+                  <span>•</span>
+                  <span>🎬 Összesen: <b class="text-zinc-200">${item.total_videos}</b></span>
+                  <span>•</span>
+                  <span class="text-emerald-400 font-medium">✅ ${item.successful_count || 0}</span>
+                  ${item.blocked_count ? `<span class="text-red-400 font-medium">🚫 ${item.blocked_count} blokk</span>` : ''}
+                  ${item.no_transcript_count ? `<span class="text-amber-400 font-medium">⚠️ ${item.no_transcript_count} nincs felirat</span>` : ''}
+                </div>
+              </div>
+              
+              <!-- Akciógombok -->
+              <div class="flex items-center gap-2 flex-wrap shrink-0">
+                <button onclick="downloadHistoryZip('${encodeURIComponent(item.folder_name)}', this)" class="px-3 py-1.5 text-xs font-semibold ${isDownloaded ? 'bg-zinc-800 hover:bg-zinc-700 text-emerald-400' : 'bg-emerald-600 hover:bg-emerald-500 text-white'} rounded-lg transition flex items-center gap-1.5 shadow-sm">
+                  <i data-lucide="${isDownloaded ? 'check-check' : 'download'}" class="w-3.5 h-3.5"></i> ZIP Letöltése
+                </button>
+                <button onclick="rerunCollection('${encodeURIComponent(item.folder_name)}', '${encodeURIComponent(item.url || '')}')" class="px-2.5 py-1.5 text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg transition flex items-center gap-1 border border-zinc-700/60" title="Újrafuttatás a link bemásolása nélkül">
+                  <i data-lucide="play" class="w-3.5 h-3.5 text-red-400 fill-red-400/30"></i> Újrafuttatás
+                </button>
+                <button onclick="toggleCollectionDetails('${encodeURIComponent(item.folder_name)}', 'details_${idx}')" class="px-2.5 py-1.5 text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg transition flex items-center gap-1 border border-zinc-700/60" title="Átiratok megtekintése">
+                  <i data-lucide="list" class="w-3.5 h-3.5"></i> Átiratok
+                </button>
+                <button onclick="deleteCollection('${encodeURIComponent(item.folder_name)}')" class="p-1.5 text-zinc-500 hover:text-red-400 rounded-lg hover:bg-zinc-900 transition" title="Gyűjtemény törlése">
+                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                </button>
+              </div>
+            </div>
+
+            <!-- Lenyíló részletek / átiratlista panel -->
+            <div id="details_${idx}" class="hidden border-t border-zinc-800/80 pt-3 space-y-2.5">
+              <div class="text-xs text-zinc-300 flex items-center justify-between font-medium">
+                <span class="flex items-center gap-1.5">
+                  <i data-lucide="file-text" class="w-3.5 h-3.5 text-red-400"></i>
+                  <span>Átiratok és videók állapota:</span>
+                </span>
+                <span id="details_count_${idx}" class="font-mono text-[11px] text-zinc-400">Betöltés...</span>
+              </div>
+              <div id="details_list_${idx}" class="space-y-1.5 max-h-72 overflow-y-auto pr-1"></div>
+            </div>
+          `;
+          container.appendChild(card);
+        });
+        lucide.createIcons();
+      } catch (err) {
+        container.innerHTML = `<p class="text-xs text-rose-500 py-4 text-center">Hiba a gyűjtemények beolvasásakor: ${err.message}</p>`;
+      }
+    }
+
+    function downloadHistoryZip(folderName, btnEl) {
+      if (btnEl) {
+        btnEl.className = "px-3 py-1.5 text-xs font-semibold bg-zinc-800 text-emerald-400 rounded-lg transition flex items-center gap-1.5 shadow-sm";
+        btnEl.innerHTML = '<i data-lucide="check-check" class="w-3.5 h-3.5"></i> ZIP Letöltve';
+        lucide.createIcons();
+      }
+      window.location.href = `/api/download-collection-zip?folder_name=${folderName}`;
+      showToast("ZIP letöltése elindult!");
+      setTimeout(loadHistory, 1500);
+    }
+
+    async function rerunCollection(folderName, directUrl) {
+      const decodedFolder = decodeURIComponent(folderName);
+      const decodedUrl = decodeURIComponent(directUrl || '');
+
+      if (decodedUrl) {
+        document.getElementById('inputUrl').value = decodedUrl;
+      }
+
+      showToast(`Újrafuttatás indítása: ${decodedFolder}...`, true);
+      
+      try {
+        const resp = await fetch('/api/re-run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ folder_name: decodedFolder })
+        });
+        const data = await resp.json();
+        if (resp.ok) {
+          showTab('tabNew');
+          if (data.url) {
+            document.getElementById('inputUrl').value = data.url;
+          }
+          currentTaskId = data.task_id;
+          document.getElementById('livePanel').classList.remove('hidden');
+          document.getElementById('successList').innerHTML = '';
+          document.getElementById('blockedList').innerHTML = '';
+          document.getElementById('missingList').innerHTML = '';
+          document.getElementById('countTotal').innerText = '0';
+          document.getElementById('countSuccess').innerText = '0';
+          document.getElementById('countBlocked').innerText = '0';
+          document.getElementById('countNoTranscript').innerText = '0';
+          document.getElementById('countError').innerText = '0';
+          document.getElementById('progressBar').style.width = '0%';
+          document.getElementById('progressPercent').innerText = '0%';
+          document.getElementById('progressText').innerText = 'Újrafuttatás folyamatban...';
+          document.getElementById('badgeStatus').className = "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 animate-pulse";
+          document.getElementById('badgeStatus').innerHTML = '<i data-lucide="loader-2" class="w-3 h-3 animate-spin"></i> Újrafuttatás...';
+          lucide.createIcons();
+          connectSSE(currentTaskId);
+        } else {
+          showToast("Hiba az újraindítás során: " + (data.detail || "Ismeretlen hiba"), false);
+        }
+      } catch (e) {
+        showToast("Hiba: " + e.message, false);
+      }
+    }
+
+    async function toggleCollectionDetails(folderName, detailsId) {
+      const panel = document.getElementById(detailsId);
+      panel.classList.toggle('hidden');
+      if (panel.classList.contains('hidden')) return;
+
+      const listContainer = document.getElementById(detailsId.replace('details_', 'details_list_'));
+      const countLabel = document.getElementById(detailsId.replace('details_', 'details_count_'));
+      listContainer.innerHTML = '<p class="text-xs text-zinc-500 py-3 text-center">Átiratok és videók betöltése...</p>';
+
+      try {
+        const resp = await fetch(`/api/collection-details?folder_name=${folderName}`);
+        const data = await resp.json();
+        const successList = data.successful_videos || [];
+        const blockedList = data.blocked_videos || [];
+        const missingList = data.no_transcript_videos || [];
+        const errorList = data.error_videos || [];
+
+        const total = data.total_videos || (successList.length + blockedList.length + missingList.length + errorList.length);
+        countLabel.innerHTML = `<span class="text-emerald-400 font-semibold">${successList.length} letöltve</span> • ${total} videóból`;
+        listContainer.innerHTML = '';
+
+        if (successList.length === 0 && blockedList.length === 0 && missingList.length === 0 && errorList.length === 0) {
+          listContainer.innerHTML = '<p class="text-xs text-zinc-500 py-3 text-center">Nincs elérhető videórekord ebben a gyűjteményben.</p>';
+          return;
+        }
+
+        // 1. Sikeres videók
+        successList.forEach(vid => {
+          const item = document.createElement('div');
+          item.className = "bg-zinc-900/90 p-2.5 rounded-lg flex items-center justify-between text-xs border border-zinc-800 hover:border-zinc-700 transition gap-2";
+          const primaryFile = (vid.files && vid.files.length > 0) ? vid.files[0] : null;
+          item.innerHTML = `
+            <div class="truncate flex items-center gap-2 min-w-0">
+              <span class="w-6 h-6 rounded bg-emerald-500/10 text-emerald-400 font-mono text-[10px] flex items-center justify-center font-bold shrink-0">#${vid.index}</span>
+              <div class="truncate">
+                <a href="${vid.url}" target="_blank" class="font-semibold text-zinc-200 hover:text-red-400 truncate block">${vid.title}</a>
+                <div class="text-[10px] text-zinc-400 flex items-center gap-1.5 mt-0.5">
+                  <span class="text-emerald-400">✅ Letöltve</span>
+                  <span>•</span>
+                  <span class="font-mono text-zinc-500">${vid.id}</span>
+                </div>
+              </div>
+            </div>
+            <div class="flex items-center gap-1.5 shrink-0">
+              ${primaryFile ? `
+                <button onclick="previewFile('${encodeURIComponent(primaryFile)}', '${encodeURIComponent(vid.title)}')" class="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded text-[11px] flex items-center gap-1">
+                  <i data-lucide="eye" class="w-3 h-3"></i> Megtekintés
+                </button>
+              ` : ''}
+              <button onclick="copyTextToClipboard('${vid.url}', 'Videó link másolva!')" class="p-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white rounded" title="Link másolása"><i data-lucide="copy" class="w-3 h-3"></i></button>
+              <a href="${vid.url}" target="_blank" class="p-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white rounded" title="Megnyitás YouTube-on"><i data-lucide="external-link" class="w-3 h-3"></i></a>
+            </div>
+          `;
+          listContainer.appendChild(item);
+        });
+
+        // 2. Blokkolt videók
+        blockedList.forEach(vid => {
+          const item = document.createElement('div');
+          item.className = "bg-red-950/30 p-2.5 rounded-lg flex items-center justify-between text-xs border border-red-900/50 gap-2";
+          item.innerHTML = `
+            <div class="truncate flex items-center gap-2 min-w-0">
+              <span class="w-6 h-6 rounded bg-red-500/10 text-red-400 font-mono text-[10px] flex items-center justify-center font-bold shrink-0">#${vid.index}</span>
+              <div class="truncate">
+                <a href="${vid.url}" target="_blank" class="font-semibold text-red-200 hover:text-red-300 truncate block">${vid.title}</a>
+                <span class="text-[10px] text-red-400/90 block mt-0.5">🚫 YouTube HTTP 429 Blokk (Létezik felirat • Futtasd újra Sütikezelővel)</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-1 shrink-0">
+              <button onclick="copyTextToClipboard('${vid.url}', 'Videó link másolva!')" class="p-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white rounded" title="Link másolása"><i data-lucide="copy" class="w-3 h-3"></i></button>
+              <a href="${vid.url}" target="_blank" class="p-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white rounded" title="Megnyitás YouTube-on"><i data-lucide="external-link" class="w-3 h-3"></i></a>
+            </div>
+          `;
+          listContainer.appendChild(item);
+        });
+
+        // 3. Hiányzó feliratú videók
+        missingList.forEach(vid => {
+          const item = document.createElement('div');
+          item.className = "bg-amber-950/20 p-2.5 rounded-lg flex items-center justify-between text-xs border border-amber-900/40 gap-2";
+          item.innerHTML = `
+            <div class="truncate flex items-center gap-2 min-w-0">
+              <span class="w-6 h-6 rounded bg-amber-500/10 text-amber-400 font-mono text-[10px] flex items-center justify-center font-bold shrink-0">#${vid.index}</span>
+              <div class="truncate">
+                <a href="${vid.url}" target="_blank" class="font-semibold text-amber-200 hover:text-amber-300 truncate block">${vid.title}</a>
+                <span class="text-[10px] text-amber-400/90 block mt-0.5">⚠️ Nem található felirat a videóhoz a YouTube-on</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-1 shrink-0">
+              <button onclick="copyTextToClipboard('${vid.url}', 'Videó link másolva!')" class="p-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white rounded" title="Link másolása"><i data-lucide="copy" class="w-3 h-3"></i></button>
+              <a href="${vid.url}" target="_blank" class="p-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white rounded" title="Megnyitás YouTube-on"><i data-lucide="external-link" class="w-3 h-3"></i></a>
+            </div>
+          `;
+          listContainer.appendChild(item);
+        });
+
+        lucide.createIcons();
+      } catch (err) {
+        listContainer.innerHTML = `<p class="text-xs text-rose-500 py-3 text-center">Hiba a részletek betöltésekor: ${err.message}</p>`;
+      }
+    }
+
+    async function deleteCollection(folderName) {
+      if (!confirm("Biztosan véglegesen törölni szeretnéd ezt a mentett gyűjteményt?")) return;
+      try {
+        const resp = await fetch(`/api/collection?folder_name=${folderName}`, { method: 'DELETE' });
+        if (resp.ok) {
+          showToast("Gyűjtemény sikeresen törölve.", true);
+          loadHistory();
+        } else {
+          showToast("Hiba a törlés során.", false);
+        }
+      } catch (e) {
+        showToast("Hiba: " + e.message, false);
+      }
+    }
+  </script>
+</body>
+</html>

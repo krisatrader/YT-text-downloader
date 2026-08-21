@@ -1,0 +1,28 @@
+# Python
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Környezeti és privát fájlok
+.env
+.saved_cookies.txt
+cookies.txt
+*.cookies
+
+# Letöltött átirat kimenetek (ne kerüljenek be a gitbe)
+transcripts_output/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
