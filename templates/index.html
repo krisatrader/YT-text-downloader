@@ -430,6 +430,10 @@
       </div>
 
       <div class="p-5 space-y-4 text-xs">
+        
+        <!-- Dinamikus visszajelző / Hibaüzenet doboz a modalon belül -->
+        <div id="modalAlertBox" class="hidden p-3 rounded-xl border transition-all text-xs"></div>
+
         <!-- Aktuális állapot kártya -->
         <div class="bg-zinc-950 p-3 rounded-xl border border-zinc-800 flex items-center justify-between">
           <div>
@@ -443,37 +447,55 @@
 
         <!-- 1. Automatikus kinyerés böngészőből -->
         <div class="space-y-2">
-          <label class="block font-semibold text-zinc-200">1. Kinyerés böngészőből (1 kattintás):</label>
+          <label class="block font-semibold text-zinc-200">1. Automatikus kinyerés a gépedről (1 kattintás):</label>
           <div class="grid grid-cols-3 sm:grid-cols-5 gap-1.5" id="browserButtonsContainer">
-            <button onclick="extractFromBrowser('chrome')" class="p-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg text-center font-medium border border-zinc-700/60 transition">Chrome</button>
-            <button onclick="extractFromBrowser('firefox')" class="p-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg text-center font-medium border border-zinc-700/60 transition">Firefox</button>
-            <button onclick="extractFromBrowser('safari')" class="p-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg text-center font-medium border border-zinc-700/60 transition">Safari</button>
-            <button onclick="extractFromBrowser('brave')" class="p-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg text-center font-medium border border-zinc-700/60 transition">Brave</button>
-            <button onclick="extractFromBrowser('edge')" class="p-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg text-center font-medium border border-zinc-700/60 transition">Edge</button>
+            <button id="btnBrowser_chrome" onclick="extractFromBrowser('chrome')" class="p-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg text-center font-medium border border-zinc-700/60 transition flex items-center justify-center gap-1">
+              <span>Chrome</span>
+            </button>
+            <button id="btnBrowser_firefox" onclick="extractFromBrowser('firefox')" class="p-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg text-center font-medium border border-zinc-700/60 transition flex items-center justify-center gap-1">
+              <span>Firefox</span>
+            </button>
+            <button id="btnBrowser_safari" onclick="extractFromBrowser('safari')" class="p-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg text-center font-medium border border-zinc-700/60 transition flex items-center justify-center gap-1">
+              <span>Safari</span>
+            </button>
+            <button id="btnBrowser_brave" onclick="extractFromBrowser('brave')" class="p-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg text-center font-medium border border-zinc-700/60 transition flex items-center justify-center gap-1">
+              <span>Brave</span>
+            </button>
+            <button id="btnBrowser_edge" onclick="extractFromBrowser('edge')" class="p-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg text-center font-medium border border-zinc-700/60 transition flex items-center justify-center gap-1">
+              <span>Edge</span>
+            </button>
           </div>
-          <p class="text-[11px] text-zinc-500">Automatikusan beolvassa a bejelentkezett YouTube sütiket a megadott böngésződből.</p>
+          <p class="text-[11px] text-zinc-500">
+            *Megjegyzés: macOS-en a Safari vagy Chrome rendszerbiztonsági okból (TCC/Kulcstartó zárolás) letilthatja a közvetlen kiolvasást. Ilyenkor a 2. pont azonnal működik!
+          </p>
         </div>
 
         <!-- 2. Manuális feltöltés vagy beillesztés -->
         <div class="space-y-2 pt-2 border-t border-zinc-800">
-          <label class="block font-semibold text-zinc-200">2. Vagy tölts fel / másolj be egy cookies.txt fájlt:</label>
+          <div class="flex items-center justify-between">
+            <label class="block font-semibold text-zinc-200">2. Vagy tölts fel / másolj be egy cookies.txt fájlt (100% Biztos):</label>
+          </div>
+          <div class="bg-zinc-950/60 p-2.5 rounded-lg border border-zinc-800 text-[11px] text-zinc-400 space-y-1">
+            <div>💡 <b>Hogyan tölthetsz le cookies.txt-t 30 mp alatt?</b></div>
+            <div>Telepítsd az ingyenes <i>"Get cookies.txt LOCALLY"</i> bővítményt (<a href="https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc" target="_blank" class="text-amber-400 underline">Chrome</a> / <a href="https://addons.mozilla.org/en-US/firefox/addon/get-cookies-txt-locally/" target="_blank" class="text-amber-400 underline">Firefox</a>), nyisd meg a youtube.com-ot, kattints a kiegészítőre és mentsd el a fájlt.</div>
+          </div>
           <input
             type="file"
             accept=".txt"
             onchange="handleModalCookieUpload(event)"
-            class="block w-full text-xs text-zinc-400 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-zinc-800 file:text-zinc-200 hover:file:bg-zinc-700 cursor-pointer"
+            class="block w-full text-xs text-zinc-400 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-zinc-800 file:text-zinc-200 hover:file:bg-zinc-700 cursor-pointer"
           >
           <textarea
             id="modalCookieTextarea"
             rows="3"
-            placeholder="# Netscape HTTP Cookie File tartalom beillesztése..."
-            class="w-full p-2 bg-zinc-950 font-mono text-[11px] text-zinc-300 border border-zinc-800 rounded-lg outline-none focus:border-amber-500"
+            placeholder="# Netscape HTTP Cookie File tartalom beillesztése ide..."
+            class="w-full p-2.5 bg-zinc-950 font-mono text-[11px] text-zinc-300 border border-zinc-800 rounded-lg outline-none focus:border-amber-500"
           ></textarea>
           <button
             onclick="saveModalCookieText()"
-            class="w-full py-2 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-semibold rounded-lg transition flex items-center justify-center gap-1.5"
+            class="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold rounded-lg transition flex items-center justify-center gap-1.5 shadow-lg shadow-amber-500/10"
           >
-            <i data-lucide="save" class="w-4 h-4"></i> Sütik Mentése
+            <i data-lucide="save" class="w-4 h-4"></i> Sütik Elmentése Alapértelmezettként
           </button>
         </div>
       </div>
@@ -597,6 +619,7 @@
       const modal = document.getElementById('cookieModal');
       modal.classList.toggle('hidden');
       if (!modal.classList.contains('hidden')) {
+        document.getElementById('modalAlertBox').classList.add('hidden');
         fetchCookieStatus();
       }
     }
@@ -624,8 +647,19 @@
     }
 
     async function extractFromBrowser(browser) {
-      const modalText = document.getElementById('modalCookieStateText');
-      modalText.innerHTML = `<span class="text-amber-400 animate-pulse">Sütik kinyerése a(z) ${browser} böngészőből...</span>`;
+      const alertBox = document.getElementById('modalAlertBox');
+      const btn = document.getElementById(`btnBrowser_${browser}`);
+      const origBtnText = btn.innerHTML;
+
+      btn.disabled = true;
+      btn.innerHTML = `<i data-lucide="loader-2" class="w-3 h-3 animate-spin"></i> Kinyerés...`;
+      lucide.createIcons();
+
+      alertBox.className = "p-3 rounded-xl border text-xs bg-amber-500/10 border-amber-500/30 text-amber-300 flex items-center gap-2";
+      alertBox.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin shrink-0"></i> Sütik kinyerése a(z) <b>${browser.toUpperCase()}</b> böngészőből folyamatban...`;
+      alertBox.classList.remove('hidden');
+      lucide.createIcons();
+
       try {
         const resp = await fetch('/api/cookies/from-browser', {
           method: 'POST',
@@ -633,16 +667,35 @@
           body: JSON.stringify({ browser: browser })
         });
         const data = await resp.json();
+
         if (resp.ok) {
+          alertBox.className = "p-3 rounded-xl border text-xs bg-emerald-500/10 border-emerald-500/30 text-emerald-300 flex items-start gap-2";
+          alertBox.innerHTML = `<i data-lucide="check-circle" class="w-4 h-4 text-emerald-400 shrink-0 mt-0.5"></i> <div><b>Siker!</b> ${data.message}</div>`;
           showToast(data.message || "Sütik sikeresen mentve!", true);
           fetchCookieStatus();
         } else {
-          showToast("Hiba: " + (data.detail || "Nem sikerült a sütik kinyerése."), false);
-          fetchCookieStatus();
+          const detail = data.detail || "Nem sikerült a sütik kinyerése.";
+          alertBox.className = "p-3.5 rounded-xl border text-xs bg-red-950/40 border-red-800/80 text-red-200 space-y-1.5";
+          alertBox.innerHTML = `
+            <div class="font-bold text-red-300 flex items-center gap-1.5">
+              <i data-lucide="alert-octagon" class="w-4 h-4 text-red-400 shrink-0"></i>
+              <span>Nem sikerült a(z) ${browser.toUpperCase()} sütik automatikus olvasása</span>
+            </div>
+            <p class="text-zinc-300">${detail}</p>
+            <div class="pt-1 text-[11px] text-amber-300">
+              👉 <b>Megoldás:</b> Használd az alábbi <b>2. pontot</b>: tölts fel egy <code>cookies.txt</code> fájlt a <i>Get cookies.txt LOCALLY</i> kiegészítővel!
+            </div>
+          `;
+          showToast("Sütikiolvasás sikertelen", false);
         }
       } catch (err) {
+        alertBox.className = "p-3 rounded-xl border text-xs bg-red-950/40 border-red-800 text-red-200";
+        alertBox.innerHTML = `<b>Hálózati Hiba:</b> ${err.message}`;
         showToast("Hiba: " + err.message, false);
-        fetchCookieStatus();
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = origBtnText;
+        lucide.createIcons();
       }
     }
 
@@ -652,6 +705,7 @@
         const reader = new FileReader();
         reader.onload = function(e) {
           document.getElementById('modalCookieTextarea').value = e.target.result;
+          showToast("Fájl beolvasva! Kattints a Mentés gombra.", true);
         };
         reader.readAsText(file);
       }
@@ -659,10 +713,15 @@
 
     async function saveModalCookieText() {
       const text = document.getElementById('modalCookieTextarea').value.trim();
+      const alertBox = document.getElementById('modalAlertBox');
+
       if (!text) {
-        showToast("Kérlek illeszd be a süti szöveget vagy tölts fel egy cookies.txt fájlt!", false);
+        alertBox.className = "p-3 rounded-xl border text-xs bg-amber-950/40 border-amber-800 text-amber-200";
+        alertBox.innerHTML = "Kérlek illeszd be a süti szöveget vagy válassz ki egy cookies.txt fájlt!";
+        alertBox.classList.remove('hidden');
         return;
       }
+
       try {
         const resp = await fetch('/api/cookies/save', {
           method: 'POST',
@@ -670,15 +729,25 @@
           body: JSON.stringify({ cookies_text: text })
         });
         if (resp.ok) {
-          showToast("Sütik sikeresen elmentve alapértelmezettként!", true);
+          alertBox.className = "p-3 rounded-xl border text-xs bg-emerald-500/10 border-emerald-500/30 text-emerald-300 flex items-center gap-2";
+          alertBox.innerHTML = `<i data-lucide="check-circle" class="w-4 h-4 text-emerald-400"></i> Sütik sikeresen elmentve alapértelmezettként!`;
+          alertBox.classList.remove('hidden');
+          showToast("Sütik sikeresen elmentve!", true);
           fetchCookieStatus();
-          toggleCookieManagerModal();
+          setTimeout(() => {
+            toggleCookieManagerModal();
+          }, 1200);
         } else {
-          showToast("Hiba a mentés során.", false);
+          alertBox.className = "p-3 rounded-xl border text-xs bg-red-950/40 border-red-800 text-red-200";
+          alertBox.innerHTML = "Hiba a mentés során.";
+          alertBox.classList.remove('hidden');
         }
       } catch (e) {
-        showToast("Hiba: " + e.message, false);
+        alertBox.className = "p-3 rounded-xl border text-xs bg-red-950/40 border-red-800 text-red-200";
+        alertBox.innerHTML = "Hiba: " + e.message;
+        alertBox.classList.remove('hidden');
       }
+      lucide.createIcons();
     }
 
     async function clearSavedCookies() {
@@ -686,6 +755,10 @@
         try {
           await fetch('/api/cookies/clear', { method: 'POST' });
           fetchCookieStatus();
+          const alertBox = document.getElementById('modalAlertBox');
+          alertBox.className = "p-3 rounded-xl border text-xs bg-zinc-800 text-zinc-300";
+          alertBox.innerHTML = "A mentett sütik törölve lettek.";
+          alertBox.classList.remove('hidden');
           showToast("Sütik törölve.", true);
         } catch (e) {
           console.error(e);

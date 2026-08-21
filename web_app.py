@@ -464,7 +464,19 @@ async def save_cookies(req: SaveCookieRequest):
 @app.post("/api/cookies/from-browser")
 async def extract_browser_cookies(req: BrowserCookieRequest):
     """Sütik kinyerése közvetlenül egy telepített böngészőből."""
-    success, msg = cookie_mgr.extract_from_browser(req.browser.lower())
+    try:
+        success, msg = await asyncio.wait_for(
+            asyncio.to_thread(cookie_mgr.extract_from_browser, req.browser.lower()),
+            timeout=8.0
+        )
+    except asyncio.TimeoutError:
+        raise HTTPException(
+            status_code=408,
+            detail=f"A(z) {req.browser.capitalize()} sütik kinyerése időtúllépés miatt megszakadt (a böngésző vagy a rendszer kulcstartója zárolva lehet). Kérlek használd a cookies.txt feltöltést/beillesztést!"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
     if not success:
         raise HTTPException(status_code=400, detail=msg)
     return {"success": True, "message": msg, "status": cookie_mgr.get_status()}

@@ -130,10 +130,22 @@ class CookieManager:
             jar = yt_dlp.cookies.extract_cookies_from_browser(browser_name)
             jar.save(str(self.storage_path), ignore_discard=True, ignore_expires=True)
             lines = [l for l in self.storage_path.read_text(encoding="utf-8").splitlines() if l.strip() and not l.startswith("#")]
+            if not lines:
+                return False, f"A(z) {browser_name.capitalize()} böngészőben nem található bejelentkezett YouTube süti."
             return True, f"Sikeresen kinyerve {len(lines)} db süti a(z) {browser_name.capitalize()} böngészőből!"
+        except PermissionError:
+            return False, (
+                f"A macOS védelmi rendszere blokkolta a(z) {browser_name.capitalize()} sütifájl olvasását (PermissionError). "
+                "Megoldás: Használd a 2. pontot (cookies.txt fájl feltöltése vagy beillesztése)!"
+            )
         except Exception as e:
             err_msg = str(e)
-            return False, f"Nem sikerült a sütik kinyerése ({browser_name}): {err_msg}"
+            if "Operation not permitted" in err_msg or "Permission denied" in err_msg:
+                return False, (
+                    f"A macOS védelmi rendszere blokkolta a(z) {browser_name.capitalize()} sütifájl olvasását. "
+                    "Megoldás: Használd a 2. pontot (cookies.txt fájl feltöltése vagy beillesztése)!"
+                )
+            return False, f"Nem sikerült a sütik kinyerése ({browser_name}): {err_msg[:140]}"
 
     def clear(self) -> bool:
         """Mentett sütik törlése."""
