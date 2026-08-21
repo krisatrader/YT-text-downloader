@@ -407,7 +407,21 @@ class TranscriptFetcher:
         if self.proxy:
             self.session.proxies = {"http": self.proxy, "https": self.proxy}
 
-        self.api = YouTubeTranscriptApi(http_client=self.session)
+        proxy_config = None
+        if self.proxy:
+            try:
+                from youtube_transcript_api.proxies import WebshareProxyConfig, GenericProxyConfig
+                if self.proxy.startswith("webshare://") or self.proxy.startswith("webshare:"):
+                    raw = self.proxy.replace("webshare://", "").replace("webshare:", "")
+                    parts = raw.split(":")
+                    if len(parts) >= 2:
+                        proxy_config = WebshareProxyConfig(proxy_username=parts[0], proxy_password=parts[1])
+                else:
+                    proxy_config = GenericProxyConfig(http_url=self.proxy, https_url=self.proxy)
+            except Exception as e:
+                print(f"Proxy konfigurációs figyelmeztetés: {e}", file=sys.stderr)
+
+        self.api = YouTubeTranscriptApi(http_client=self.session, proxy_config=proxy_config)
 
     def get_transcript(self, video_id: str, retry_count: int = 0, max_retries: int = 2) -> Dict[str, Any]:
         """
