@@ -88,28 +88,81 @@ class CookieManager:
         else:
             self.storage_path = (Path(__file__).parent / "transcripts_output" / ".saved_cookies.txt").resolve()
 
+    @staticmethod
+    def inspect_cookie_content(text: str) -> Dict[str, Any]:
+        """Elemzi a Netscape süti szövegét és ellenőrzi a kritikus YouTube munkamenet kulcsokat."""
+        if not text or not text.strip():
+            return {
+                "has_cookies": False,
+                "cookie_count": 0,
+                "auth_level": "none",
+                "auth_status_label": "Nincsenek sütik",
+                "found_auth_tokens": [],
+                "missing_auth_tokens": ["SID", "HSID", "SSID", "LOGIN_INFO"],
+                "recommendation": "Illessz be vagy tölts fel egy érvényes Netscape formátumú cookies.txt fájlt!",
+            }
+
+        lines = [l.strip() for l in text.splitlines() if l.strip() and not l.startswith("#")]
+        names = set()
+        for line in lines:
+            parts = line.split("\t")
+            if len(parts) >= 6:
+                names.add(parts[5].strip())
+
+        essential_tokens = ["SID", "HSID", "SSID", "LOGIN_INFO", "SAPISID", "APISID", "__Secure-1PSID", "__Secure-3PSID"]
+        found = [tok for tok in essential_tokens if tok in names]
+        missing = [tok for tok in ["SID", "LOGIN_INFO", "HSID", "SSID"] if tok not in names]
+
+        # Auth szint meghatározása
+        has_primary = ("SID" in names or "__Secure-1PSID" in names or "LOGIN_INFO" in names)
+        if has_primary and len(found) >= 2:
+            auth_level = "full"
+            auth_status_label = "✅ Teljes bejelentkezett munkamenet (429 blokk feloldva)"
+            rec = "A sütik tartalmazzák a szükséges hitelesítési tokeneket."
+        elif len(lines) > 0:
+            auth_level = "partial"
+            auth_status_label = "⚠️ Részleges / Hiányos sütik (Csak másodlagos azonosítók)"
+            rec = "A sütikből hiányoznak a bejelentkezési tokenek (pl. SID, LOGIN_INFO). A YouTube-on bejelentkezve exportáld a teljes Netscape cookies.txt-t!"
+        else:
+            auth_level = "none"
+            auth_status_label = "Érvénytelen formátum"
+            rec = "A megadott szöveg nem tartalmaz érvényes Netscape formátumú sütiket."
+
+        return {
+            "has_cookies": len(lines) > 0,
+            "cookie_count": len(lines),
+            "auth_level": auth_level,
+            "auth_status_label": auth_status_label,
+            "found_auth_tokens": found,
+            "missing_auth_tokens": missing,
+            "recommendation": rec,
+        }
+
     def get_status(self) -> Dict[str, Any]:
-        """Visszaadja a mentett sütik állapotát."""
+        """Visszaadja a mentett sütik állapotát és diagnosztikáját."""
         browsers = sorted(list(yt_dlp.cookies.SUPPORTED_BROWSERS)) if hasattr(yt_dlp.cookies, "SUPPORTED_BROWSERS") else []
         if not self.storage_path.exists():
             return {
                 "has_cookies": False,
                 "path": str(self.storage_path),
                 "cookie_count": 0,
+                "auth_level": "none",
+                "auth_status_label": "Nincsenek mentett sütik",
                 "updated_at": None,
                 "available_browsers": browsers,
+                "found_auth_tokens": [],
+                "missing_auth_tokens": ["SID", "LOGIN_INFO"],
             }
         try:
             mtime = datetime.datetime.fromtimestamp(self.storage_path.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
             content = self.storage_path.read_text(encoding="utf-8")
-            lines = [l for l in content.splitlines() if l.strip() and not l.startswith("#")]
-            return {
-                "has_cookies": len(lines) > 0,
+            diag = self.inspect_cookie_content(content)
+            diag.update({
                 "path": str(self.storage_path),
-                "cookie_count": len(lines),
                 "updated_at": mtime,
                 "available_browsers": browsers,
-            }
+            })
+            return diag
         except Exception as e:
             return {
                 "has_cookies": False,
@@ -278,11 +331,10 @@ class TranscriptFetcher:
 
         self.api = YouTubeTranscriptApi(http_client=self.session)
 
-    def get_transcript(self, video_id: str, retry_on_block: bool = True) -> Dict[str, Any]:
+    def get_transcript(self, video_id: str, retry_count: int = 0, max_retries: int = 2) -> Dict[str, Any]:
         """
-        Lekéri a videó átiratát. Előnyben részesíti a preferált manuális feliratokat,
-        majd az automatikus feliratokat, pontosan megkülönböztetve a valóban hiányzó átiratot
-        a YouTube botvédelmi (HTTP 429 / IpBlocked) korlátozásától.
+        Lekéri a videó átiratát adaptív exponenciális visszalépéssel és pontos hibadiagnosztikával.
+        Megkülönbözteti a valóban hiányzó átiratot a YouTube botvédelmi (HTTP 429 / IpBlocked) korlátozásától.
         """
         result = {
             "status": "error",
@@ -401,35 +453,33 @@ class TranscriptFetcher:
             result["status"] = "error"
             result["error_reason"] = "A videó nem érhető el vagy privát (VideoUnavailable)."
             return result
-        except CouldNotRetrieveTranscript as e:
-            err_msg = str(e)
-            if "blocking requests" in err_msg or "429" in err_msg or "IpBlocked" in err_msg:
-                if retry_on_block:
-                    time.sleep(3.5)
-                    return self.get_transcript(video_id, retry_on_block=False)
-
-                result["status"] = "blocked"
-                result["error_reason"] = (
-                    "A YouTube botvédelme (HTTP 429) korlátozta a letöltést az IP-dről. "
-                    "A felirat létezik, de letöltéséhez YouTube bejelentkezési sütik (cookies.txt) vagy hosszabb késleltetés szükséges."
-                )
-            else:
-                result["status"] = "no_transcript"
-                result["error_reason"] = f"Nem sikerült lekérni az átiratot: {err_msg[:120]}"
-            return result
-        except Exception as e:
+        except (CouldNotRetrieveTranscript, Exception) as e:
             err_name = type(e).__name__
             err_msg = str(e)
-            if "IpBlocked" in err_name or "RequestBlocked" in err_name or "TooManyRequests" in err_name or "429" in err_msg:
-                if retry_on_block:
-                    time.sleep(3.5)
-                    return self.get_transcript(video_id, retry_on_block=False)
+            is_429 = (
+                "blocking requests" in err_msg
+                or "429" in err_msg
+                or "IpBlocked" in err_name
+                or "RequestBlocked" in err_name
+                or "TooManyRequests" in err_name
+            )
+
+            if is_429:
+                if retry_count < max_retries:
+                    backoff = (2.5 ** (retry_count + 1)) + random.uniform(1.0, 2.5)
+                    time.sleep(backoff)
+                    return self.get_transcript(video_id, retry_count=retry_count + 1, max_retries=max_retries)
 
                 result["status"] = "blocked"
                 result["error_reason"] = (
-                    "A YouTube botvédelme (HTTP 429) korlátozta a letöltést az IP-dről. "
-                    "A felirat létezik, de letöltéséhez YouTube bejelentkezési sütik (cookies.txt) vagy hosszabb késleltetés szükséges."
+                    "YouTube HTTP 429 Blokk: Az IP címedet a YouTube botvédelme ideiglenesen korlátozza. "
+                    "Megoldások: (1) Sütikezelőben teljes cookies.txt (SID / LOGIN_INFO) mentése, "
+                    "(2) Váltás Mobil Hotspotra vagy router újraindítás az IP megváltoztatásához, "
+                    "(3) Proxy / Tor SOCKS5 használata, vagy (4) Futtatás Google Colabból."
                 )
+            elif "NoTranscriptFound" in err_name or "TranscriptsDisabled" in err_name:
+                result["status"] = "no_transcript"
+                result["error_reason"] = "A videóhoz nem található átirat a YouTube-on."
             else:
                 result["status"] = "error"
                 result["error_reason"] = f"Hiba ({err_name}): {err_msg[:120]}"

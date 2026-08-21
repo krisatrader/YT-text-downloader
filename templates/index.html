@@ -244,6 +244,20 @@
                     >
                   </div>
                 </div>
+
+                <!-- Proxy / Tor SOCKS5 Beállítás -->
+                <div class="md:col-span-3 bg-zinc-950/50 p-3.5 rounded-xl border border-zinc-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <label class="block text-xs font-semibold text-zinc-300">Proxy vagy Tor SOCKS5 Szerver (429 IP-blokk azonnali feloldása)</label>
+                    <p class="text-[11px] text-zinc-400">Tor Browserrel: <code class="text-indigo-400">socks5://127.0.0.1:9150</code> vagy HTTP proxy: <code class="text-zinc-400">http://ip:port</code></p>
+                  </div>
+                  <input
+                    type="text"
+                    id="inputProxy"
+                    placeholder="pl. socks5://127.0.0.1:9150"
+                    class="w-full sm:w-72 px-2.5 py-1.5 bg-zinc-900 border border-zinc-700/70 rounded-lg text-xs font-mono outline-none focus:border-red-500"
+                  />
+                </div>
               </div>
 
             </div>
@@ -263,19 +277,23 @@
       </div>
 
       <!-- 2. ÉLŐ FOLYAMATKÖVETŐ PANEL (Alapból rejtve) -->
-      <div id="livePanel" class="hidden space-y-5">
+      <div id="livePanel" class="hidden space-y-6">
         
         <!-- Állapot és Progress kártya -->
-        <div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 md:p-6 shadow-xl space-y-4">
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-4">
+        <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-2xl p-5 md:p-6 shadow-xl space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-zinc-800/80">
             <div>
-              <div class="flex items-center gap-2">
-                <span id="badgeStatus" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 animate-pulse">
-                  <i data-lucide="loader-2" class="w-3 h-3 animate-spin"></i> Feldolgozás alatt...
+              <div class="flex items-center gap-2.5">
+                <span id="badgeStatus" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                  <i data-lucide="loader-2" class="w-3 h-3 animate-spin"></i> Folyamatban...
                 </span>
-                <span id="labelCollectionTitle" class="text-sm font-semibold text-white truncate max-w-md">Gyűjtemény beolvasása...</span>
+                <h3 id="labelCollectionTitle" class="text-base font-bold text-white tracking-tight truncate max-w-md">
+                  YouTube Videók
+                </h3>
               </div>
-              <p id="labelCurrentVideo" class="text-xs text-zinc-400 mt-1 truncate">Kezdés előkészítése...</p>
+              <p id="labelCurrentVideo" class="text-xs text-zinc-400 mt-1 truncate">
+                Előkészítés...
+              </p>
             </div>
             
             <div class="flex items-center gap-2">
@@ -317,18 +335,60 @@
             <span id="delayCountdown" class="font-mono font-bold text-emerald-400">2.5 mp</span>
           </div>
 
-          <!-- Figyelmeztető banner ha van YouTube 429 blokkolás -->
-          <div id="blockedAlertBanner" class="hidden bg-red-950/40 border border-red-800/80 rounded-xl p-3.5 text-xs text-red-200 flex items-start gap-3">
-            <i data-lucide="alert-octagon" class="w-5 h-5 text-red-400 shrink-0 mt-0.5"></i>
-            <div class="space-y-1.5">
-              <h4 class="font-bold text-red-300">A YouTube korlátozta a lekéréseket az IP címedről (HTTP 429 Too Many Requests)</h4>
-              <p class="text-zinc-300">
-                A videókhoz <b>van felirat</b>, de a YouTube robotvédelme blokkolta a letöltést.
-                <b>Megoldás:</b> Nyisd meg a Sütikezelőt, és illessz be YouTube sütiket!
-              </p>
-              <button onclick="toggleCookieManagerModal()" class="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-semibold rounded-lg text-xs flex items-center gap-1">
-                <i data-lucide="cookie" class="w-3.5 h-3.5"></i> Sütikezelő megnyitása
-              </button>
+          <!-- 429 Blokk Hibaelhárító Megoldásközpont -->
+          <div id="blockedAlertBanner" class="hidden bg-red-950/50 border border-red-800/80 rounded-2xl p-4 text-xs text-red-200 space-y-3 shadow-xl">
+            <div class="flex items-start gap-3">
+              <div class="w-8 h-8 rounded-lg bg-red-500/20 text-red-400 flex items-center justify-center font-bold shrink-0">
+                <i data-lucide="shield-alert" class="w-5 h-5"></i>
+              </div>
+              <div class="space-y-1">
+                <h4 class="font-bold text-sm text-red-200">YouTube Robotvédelem (HTTP 429 Blokk) észlelve az IP-címedről</h4>
+                <p class="text-zinc-300 text-[11px]">
+                  A felirat létezik a videóknál, de a YouTube szerverei túlzott lekérdezések miatt ideiglenesen zárolták ezt a hálózati címet. <b>Válassz az alábbi 4 azonnali megoldás közül:</b>
+                </p>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+              <!-- 1. Megoldás: Sütik -->
+              <div class="bg-zinc-900/90 border border-zinc-800 p-3 rounded-xl space-y-1.5">
+                <div class="flex items-center justify-between font-semibold text-zinc-200">
+                  <span class="flex items-center gap-1.5"><i data-lucide="cookie" class="w-4 h-4 text-amber-400"></i> 1. Teljes Sütik Mentése</span>
+                  <span class="text-[10px] text-amber-400 font-mono">Ajánlott</span>
+                </div>
+                <p class="text-[11px] text-zinc-400">Exportáld a teljes Netscape sütiket a <b>Cookie-Editor</b> bővítménnyel a YouTube-ról.</p>
+                <button onclick="toggleCookieManagerModal()" class="w-full mt-1 py-1.5 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold rounded-lg transition text-xs flex items-center justify-center gap-1">
+                  <i data-lucide="cookie" class="w-3.5 h-3.5"></i> Sütikezelő Megnyitása
+                </button>
+              </div>
+
+              <!-- 2. Megoldás: Mobil Hotspot / IP csere -->
+              <div class="bg-zinc-900/90 border border-zinc-800 p-3 rounded-xl space-y-1.5">
+                <div class="flex items-center justify-between font-semibold text-zinc-200">
+                  <span class="flex items-center gap-1.5"><i data-lucide="smartphone" class="w-4 h-4 text-emerald-400"></i> 2. Mobil Hotspot (IP Csere)</span>
+                  <span class="text-[10px] text-emerald-400 font-mono">15 másodperc</span>
+                </div>
+                <p class="text-[11px] text-zinc-400">Válts át a telefonod mobil hotspotjára, vagy indítsd újra a modemed, és azonnal új IP-t kapsz!</p>
+              </div>
+
+              <!-- 3. Megoldás: Tor / SOCKS5 Proxy -->
+              <div class="bg-zinc-900/90 border border-zinc-800 p-3 rounded-xl space-y-1.5">
+                <div class="flex items-center justify-between font-semibold text-zinc-200">
+                  <span class="flex items-center gap-1.5"><i data-lucide="shield" class="w-4 h-4 text-indigo-400"></i> 3. Tor Browser / Proxy</span>
+                </div>
+                <p class="text-[11px] text-zinc-400">Indíts Tor Browsert a háttérben és írd be a beállításoknál a Proxy mezőbe: <code class="text-indigo-300">socks5://127.0.0.1:9150</code></p>
+              </div>
+
+              <!-- 4. Megoldás: Google Colab -->
+              <div class="bg-zinc-900/90 border border-zinc-800 p-3 rounded-xl space-y-1.5">
+                <div class="flex items-center justify-between font-semibold text-zinc-200">
+                  <span class="flex items-center gap-1.5"><i data-lucide="cloud" class="w-4 h-4 text-sky-400"></i> 4. Google Colab (Felhő)</span>
+                </div>
+                <p class="text-[11px] text-zinc-400">Futtasd ingyen a Google szervereiről, amely garantáltan külön tiszta IP-ről működik.</p>
+                <a href="https://colab.research.google.com/github/krisatrader/YT-text-downloader/blob/main/youtube_transcript_downloader_colab.ipynb" target="_blank" class="w-full mt-1 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-sky-300 font-semibold rounded-lg transition text-xs flex items-center justify-center gap-1">
+                  <i data-lucide="external-link" class="w-3.5 h-3.5"></i> Megnyitás Google Colabban
+                </a>
+              </div>
             </div>
           </div>
 
@@ -698,16 +758,29 @@
         const modalText = document.getElementById('modalCookieStateText');
 
         if (data.has_cookies) {
-          badge.className = "px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono text-[11px] flex items-center gap-1";
-          badge.innerHTML = `<i data-lucide="check" class="w-3 h-3"></i> Aktív (${data.cookie_count} süti)`;
+          if (data.auth_level === "full") {
+            badge.className = "px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono text-[11px] flex items-center gap-1";
+            badge.innerHTML = `<i data-lucide="shield-check" class="w-3 h-3"></i> Hitelesített (${data.cookie_count} süti)`;
+          } else {
+            badge.className = "px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 font-mono text-[11px] flex items-center gap-1";
+            badge.innerHTML = `<i data-lucide="alert-triangle" class="w-3 h-3"></i> Részleges (${data.cookie_count} süti)`;
+          }
+
           if (modalText) {
-            modalText.innerHTML = `<span class="text-emerald-400 font-medium">✅ Aktív (${data.cookie_count} süti mentve • Frissítve: ${data.updated_at || "nemrég"})</span>`;
+            const tokenList = (data.found_auth_tokens && data.found_auth_tokens.length > 0) ? ` (Tokenek: ${data.found_auth_tokens.join(', ')})` : '';
+            modalText.innerHTML = `
+              <div class="space-y-1">
+                <span class="${data.auth_level === 'full' ? 'text-emerald-400' : 'text-amber-400'} font-semibold">${data.auth_status_label || 'Aktív sütik'}</span>
+                <p class="text-[11px] text-zinc-400">${data.cookie_count} db süti mentve${tokenList} • Frissítve: ${data.updated_at || "nemrég"}</p>
+                ${data.missing_auth_tokens && data.missing_auth_tokens.length > 0 && data.auth_level !== 'full' ? `<p class="text-[10px] text-amber-400/90 font-mono">Hiányzó bejelentkezési kulcsok: ${data.missing_auth_tokens.join(', ')}</p>` : ''}
+              </div>
+            `;
           }
         } else {
           badge.className = "px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400 border border-zinc-700/60 font-mono text-[11px]";
           badge.innerHTML = `Nincsenek mentett sütik`;
           if (modalText) {
-            modalText.innerHTML = `<span class="text-zinc-400">Nincsenek mentve sütik (a YouTube HTTP 429 hibát adhat nagy listáknál).</span>`;
+            modalText.innerHTML = `<span class="text-zinc-400">Nincsenek mentve sütik (a YouTube HTTP 429 hibát adhat az IP-címedre).</span>`;
           }
         }
         lucide.createIcons();
@@ -798,22 +871,33 @@
         const data = await resp.json();
 
         if (resp.ok) {
-          alertBox.className = "p-3 rounded-xl border text-xs bg-emerald-500/10 border-emerald-500/30 text-emerald-300 flex items-center gap-2";
-          alertBox.innerHTML = `<i data-lucide="check-circle" class="w-4 h-4 text-emerald-400"></i> <b>Siker!</b> ${data.status.cookie_count} db süti elmentve alapértelmezettként!`;
+          const authNote = data.status.auth_level === 'full'
+            ? '✅ <b>Hitelesített bejelentkezés!</b> (A YouTube 429 botvédelem sikeresen feloldva)'
+            : '⚠️ <b>Figyelem:</b> A sütik elmentve, de hiányoznak a bejelentkezési kulcsok (SID / LOGIN_INFO). Ha továbbra is 429-et kapsz, bejelentkezve exportáld a Netscape sütiket!';
+
+          alertBox.className = "p-3 rounded-xl border text-xs bg-emerald-500/10 border-emerald-500/30 text-emerald-300 space-y-1";
+          alertBox.innerHTML = `
+            <div class="flex items-center gap-2 font-bold">
+              <i data-lucide="check-circle" class="w-4 h-4 text-emerald-400"></i> ${data.status.cookie_count} db süti elmentve!
+            </div>
+            <p class="text-[11px] text-zinc-300">${authNote}</p>
+          `;
           showToast(`Sütik elmentve (${data.status.cookie_count} db)!`, true);
           fetchCookieStatus();
           setTimeout(() => {
-            toggleCookieManagerModal();
-          }, 1500);
+            if (data.status.auth_level === 'full') {
+              toggleCookieManagerModal();
+            }
+          }, 2000);
         } else {
           alertBox.className = "p-3 rounded-xl border text-xs bg-red-950/40 border-red-800 text-red-200";
-          alertBox.innerHTML = `<b>Hiba a mentés során:</b> ${data.detail || "Ismeretlen hiba"}`;
+          alertBox.innerHTML = "Hiba a mentéskor: " + (data.detail || "Ismeretlen hiba");
         }
-      } catch (e) {
+        lucide.createIcons();
+      } catch (err) {
         alertBox.className = "p-3 rounded-xl border text-xs bg-red-950/40 border-red-800 text-red-200";
-        alertBox.innerHTML = "Hálózati hiba: " + e.message;
+        alertBox.innerHTML = "Hálózati hiba: " + err.message;
       }
-      lucide.createIcons();
     }
 
     async function saveModalCookieText() {
@@ -823,15 +907,8 @@
 
     async function extractFromBrowser(browser) {
       const alertBox = document.getElementById('modalAlertBox');
-      const btn = document.getElementById(`btnBrowser_${browser}`);
-      const origBtnText = btn.innerHTML;
-
-      btn.disabled = true;
-      btn.innerHTML = `<i data-lucide="loader-2" class="w-3 h-3 animate-spin"></i>`;
-      lucide.createIcons();
-
       alertBox.className = "p-3 rounded-xl border text-xs bg-amber-500/10 border-amber-500/30 text-amber-300 flex items-center gap-2";
-      alertBox.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin shrink-0"></i> Sütik kinyerése a(z) <b>${browser.toUpperCase()}</b> böngészőből folyamatban...`;
+      alertBox.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin shrink-0"></i> Sütik kinyerése a(z) <b>${browser.toUpperCase()}</b> böngészőből...`;
       alertBox.classList.remove('hidden');
       lucide.createIcons();
 
@@ -844,35 +921,27 @@
         const data = await resp.json();
 
         if (resp.ok) {
-          alertBox.className = "p-3 rounded-xl border text-xs bg-emerald-500/10 border-emerald-500/30 text-emerald-300 flex items-start gap-2";
-          alertBox.innerHTML = `<i data-lucide="check-circle" class="w-4 h-4 text-emerald-400 shrink-0 mt-0.5"></i> <div><b>Siker!</b> ${data.message}</div>`;
-          showToast(data.message || "Sütik sikeresen mentve!", true);
+          alertBox.className = "p-3 rounded-xl border text-xs bg-emerald-500/10 border-emerald-500/30 text-emerald-300 flex items-center gap-2";
+          alertBox.innerHTML = `<i data-lucide="check-circle" class="w-4 h-4 text-emerald-400"></i> ${data.message}`;
+          showToast(`Sütik kinyerve (${browser})!`, true);
           fetchCookieStatus();
           setTimeout(() => {
             toggleCookieManagerModal();
           }, 1500);
         } else {
-          const detail = data.detail || "Nem sikerült a sütik kinyerése.";
-          alertBox.className = "p-3.5 rounded-xl border text-xs bg-red-950/40 border-red-800/80 text-red-200 space-y-1.5";
+          alertBox.className = "p-3 rounded-xl border text-xs bg-red-950/40 border-red-800 text-red-200 space-y-1.5";
           alertBox.innerHTML = `
-            <div class="font-bold text-red-300 flex items-center gap-1.5">
-              <i data-lucide="alert-octagon" class="w-4 h-4 text-red-400 shrink-0"></i>
-              <span>Nem sikerült a(z) ${browser.toUpperCase()} sütik automatikus olvasása</span>
+            <div class="font-bold flex items-center gap-1.5 text-red-300">
+              <i data-lucide="shield-alert" class="w-4 h-4 text-red-400"></i> Nem sikerült a közvetlen böngészőolvasás (${browser})
             </div>
-            <p class="text-zinc-300">${detail}</p>
-            <div class="pt-1 text-[11px] text-amber-300">
-              👉 <b>Megoldás:</b> Használd a fenti <b>A)</b> vagy <b>B)</b> pontot (vágólap vagy fájl kiválasztása)!
-            </div>
+            <p class="text-[11px] text-zinc-300">${data.detail || data.message || "Ismeretlen hiba"}</p>
+            <p class="text-[11px] text-amber-300 font-medium">💡 Használd a 2. pontot: Vágólap beillesztés vagy cookies.txt fájl tallózása!</p>
           `;
-          showToast("Sütikiolvasás sikertelen", false);
         }
+        lucide.createIcons();
       } catch (err) {
         alertBox.className = "p-3 rounded-xl border text-xs bg-red-950/40 border-red-800 text-red-200";
-        alertBox.innerHTML = `<b>Hálózati Hiba:</b> ${err.message}`;
-        showToast("Hiba: " + err.message, false);
-      } finally {
-        btn.disabled = false;
-        btn.innerHTML = origBtnText;
+        alertBox.innerHTML = "Hálózati hiba a böngésző sütik lekérésekor: " + err.message;
         lucide.createIcons();
       }
     }
@@ -927,6 +996,7 @@
       const includeTimestamps = document.getElementById('checkTimestamps').checked;
       const limitVal = document.getElementById('inputLimit').value.trim();
       const limit = limitVal ? parseInt(limitVal, 10) : null;
+      const proxyVal = document.getElementById('inputProxy') ? document.getElementById('inputProxy').value.trim() : null;
 
       // UI reset
       successfulVideos = [];
@@ -965,7 +1035,8 @@
             delay_min: delayMin,
             delay_max: delayMax,
             include_timestamps: includeTimestamps,
-            limit: limit
+            limit: limit,
+            proxy: proxyVal || null
           })
         });
 

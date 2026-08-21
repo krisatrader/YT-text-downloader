@@ -471,6 +471,13 @@ async def get_cookies_status():
     return cookie_mgr.get_status()
 
 
+@app.post("/api/cookies/diagnose")
+async def diagnose_cookies(req: SaveCookieRequest):
+    """Süti tartalom valós idejű hitelességi és hiányossági elemzése."""
+    diag = CookieManager.inspect_cookie_content(req.cookies_text)
+    return diag
+
+
 @app.post("/api/cookies/save")
 async def save_cookies(req: SaveCookieRequest):
     """Manuálisan beillesztett sütik mentése perzisztens fájlba."""
