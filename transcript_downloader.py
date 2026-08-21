@@ -221,80 +221,136 @@ class YouTubeExtractor:
     """Videók és metaadatok kigyűjtése YouTube URL-ekből (egyedi videó, playlist, csatorna)."""
 
     def __init__(self, cookies_file: Optional[str] = None, proxy: Optional[str] = None):
+        self.cookies_file = cookies_file or CookieManager().get_valid_cookie_file()
+        self.proxy = proxy
         self.ydl_opts = {
-            "extract_flat": True,
+            "extract_flat": "in_playlist",
             "quiet": True,
             "no_warnings": True,
-            "ignoreerrors": True,
+            "ignore_no_formats_error": True,
             "skip_download": True,
+            "nocheckcertificate": True,
         }
-        # Ha nincs külön megadva, ellenőrizzük a perzisztens sütiket
-        cookie_path = cookies_file or CookieManager().get_valid_cookie_file()
-        if cookie_path and os.path.isfile(cookie_path):
-            self.ydl_opts["cookiefile"] = cookie_path
-        if proxy:
-            self.ydl_opts["proxy"] = proxy
+        if self.cookies_file and os.path.isfile(self.cookies_file):
+            self.ydl_opts["cookiefile"] = self.cookies_file
+        if self.proxy:
+            self.ydl_opts["proxy"] = self.proxy
+
+    @staticmethod
+    def clean_url(url: str) -> str:
+        """Tisztítja a YouTube URL-eket, eltávolítva a felesleges tracking paramétereket (?si=...)."""
+        url = url.strip()
+        if re.match(r"^[a-zA-Z0-9_-]{11}$", url):
+            return f"https://www.youtube.com/watch?v={url}"
+
+        m_short = re.search(r"youtu\.be/([a-zA-Z0-9_-]{11})", url)
+        if m_short:
+            return f"https://www.youtube.com/watch?v={m_short.group(1)}"
+
+        if "watch?v=" in url and "list=" not in url:
+            m_watch = re.search(r"watch\?v=([a-zA-Z0-9_-]{11})", url)
+            if m_watch:
+                return f"https://www.youtube.com/watch?v={m_watch.group(1)}"
+
+        return url
+
+    @staticmethod
+    def extract_single_video_id(url: str) -> Optional[str]:
+        """Kinyeri a 11 karakteres YouTube videó azonosítót tetszőleges URL-ből vagy szövegből."""
+        url = url.strip()
+        if re.match(r"^[a-zA-Z0-9_-]{11}$", url):
+            return url
+        m = re.search(r"(?:v=|\/|be\/)([a-zA-Z0-9_-]{11})(?:[&?]|$)", url)
+        return m.group(1) if m else None
 
     def extract_info(self, url: str, limit: Optional[int] = None) -> Tuple[str, List[Dict[str, Any]]]:
         """
         URL elemzése: visszaadja a gyűjtemény nevét (csatorna/lejátszási lista/videó)
         és a feldolgozandó videók metaadat listáját.
         """
+        cleaned_url = self.clean_url(url)
         opts = dict(self.ydl_opts)
         if limit and limit > 0:
             opts["playlistend"] = limit
 
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            if not info:
-                raise ValueError(f"Nem sikerült beolvasni az információkat a megadott URL-ről: {url}")
+        info = None
+        # 1. Próbálkozás standard beállításokkal
+        try:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = ydl.extract_info(cleaned_url, download=False)
+        except Exception:
+            pass
 
-            videos: List[Dict[str, Any]] = []
-            collection_title = ""
+        # 2. Ha sütikkel hibát dobott, megpróbáljuk sütik nélkül
+        if not info and "cookiefile" in opts:
+            opts_no_cookies = dict(opts)
+            opts_no_cookies.pop("cookiefile", None)
+            try:
+                with yt_dlp.YoutubeDL(opts_no_cookies) as ydl:
+                    info = ydl.extract_info(cleaned_url, download=False)
+            except Exception:
+                pass
 
-            # Ha lejátszási lista vagy csatorna (több videó bejegyzés)
-            if "entries" in info:
-                collection_title = (
-                    info.get("title")
-                    or info.get("uploader")
-                    or info.get("channel")
-                    or "YouTube_Collection"
-                )
-                for entry in info["entries"]:
-                    if not entry:
-                        continue
-                    video_id = entry.get("id")
-                    if not video_id:
-                        continue
-                    title = entry.get("title") or f"video_{video_id}"
-                    video_url = entry.get("url") or f"https://www.youtube.com/watch?v={video_id}"
-                    if not video_url.startswith("http"):
-                        video_url = f"https://www.youtube.com/watch?v={video_id}"
+        # 3. Ha yt-dlp teljesen elhasalt, de az URL egyetlen videó, közvetlen tartalék azonosító képzése
+        if not info:
+            single_id = self.extract_single_video_id(url)
+            if single_id:
+                return f"YouTube_Video_{single_id}", [{
+                    "id": single_id,
+                    "title": f"YouTube Videó ({single_id})",
+                    "url": f"https://www.youtube.com/watch?v={single_id}",
+                    "channel": "YouTube",
+                    "duration": None,
+                    "description": "",
+                }]
+            raise ValueError(f"Nem sikerült beolvasni az információkat a megadott URL-ről: {url}")
 
-                    videos.append({
-                        "id": video_id,
-                        "title": title,
-                        "url": video_url,
-                        "channel": entry.get("uploader") or entry.get("channel") or info.get("channel") or "Unknown",
-                        "duration": entry.get("duration"),
-                        "description": entry.get("description", ""),
-                    })
-            else:
-                # Egyetlen videó
-                video_id = info.get("id")
-                title = info.get("title") or f"video_{video_id}"
-                collection_title = title
-                video_url = info.get("webpage_url") or f"https://www.youtube.com/watch?v={video_id}"
+        videos: List[Dict[str, Any]] = []
+        collection_title = ""
+
+        # Ha lejátszási lista vagy csatorna (több videó bejegyzés)
+        if "entries" in info:
+            collection_title = (
+                info.get("title")
+                or info.get("uploader")
+                or info.get("channel")
+                or "YouTube_Collection"
+            )
+            for entry in info["entries"]:
+                if not entry:
+                    continue
+                video_id = entry.get("id")
+                if not video_id:
+                    continue
+                title = entry.get("title") or f"video_{video_id}"
+                video_url = entry.get("url") or f"https://www.youtube.com/watch?v={video_id}"
+                if not video_url.startswith("http"):
+                    video_url = f"https://www.youtube.com/watch?v={video_id}"
+
                 videos.append({
                     "id": video_id,
                     "title": title,
                     "url": video_url,
-                    "channel": info.get("uploader") or info.get("channel") or "Unknown",
-                    "duration": info.get("duration"),
-                    "description": info.get("description", ""),
+                    "channel": entry.get("uploader") or entry.get("channel") or info.get("channel") or "Unknown",
+                    "duration": entry.get("duration"),
+                    "description": entry.get("description", ""),
                 })
+        else:
+            # Egyetlen videó
+            video_id = info.get("id") or self.extract_single_video_id(cleaned_url) or "unknown"
+            title = info.get("title") or f"video_{video_id}"
+            collection_title = title
+            video_url = info.get("webpage_url") or f"https://www.youtube.com/watch?v={video_id}"
+            videos.append({
+                "id": video_id,
+                "title": title,
+                "url": video_url,
+                "channel": info.get("uploader") or info.get("channel") or "Unknown",
+                "duration": info.get("duration"),
+                "description": info.get("description", ""),
+            })
 
-            return collection_title, videos
+        return collection_title, videos
 
 
 class TranscriptFetcher:
