@@ -230,6 +230,9 @@ class YouTubeExtractor:
             "ignore_no_formats_error": True,
             "skip_download": True,
             "nocheckcertificate": True,
+            "extractor_args": {
+                "youtubetab": {"skip": ["authcheck"]},
+            },
         }
         if self.cookies_file and os.path.isfile(self.cookies_file):
             self.ydl_opts["cookiefile"] = self.cookies_file
@@ -243,13 +246,20 @@ class YouTubeExtractor:
         if re.match(r"^[a-zA-Z0-9_-]{11}$", url):
             return f"https://www.youtube.com/watch?v={url}"
 
+        # Playlist URL tisztítása
+        m_list = re.search(r"list=([a-zA-Z0-9_-]+)", url)
+        if "playlist" in url and m_list:
+            return f"https://www.youtube.com/playlist?list={m_list.group(1)}"
+
         m_short = re.search(r"youtu\.be/([a-zA-Z0-9_-]{11})", url)
         if m_short:
             return f"https://www.youtube.com/watch?v={m_short.group(1)}"
 
-        if "watch?v=" in url and "list=" not in url:
+        if "watch?v=" in url:
             m_watch = re.search(r"watch\?v=([a-zA-Z0-9_-]{11})", url)
             if m_watch:
+                if m_list:
+                    return f"https://www.youtube.com/watch?v={m_watch.group(1)}&list={m_list.group(1)}"
                 return f"https://www.youtube.com/watch?v={m_watch.group(1)}"
 
         return url
@@ -274,12 +284,14 @@ class YouTubeExtractor:
             opts["playlistend"] = limit
 
         info = None
-        # 1. Próbálkozás standard beállításokkal
+        last_error = None
+
+        # 1. Próbálkozás tisztított URL-lel és beállított opciókkal
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(cleaned_url, download=False)
-        except Exception:
-            pass
+        except Exception as e:
+            last_error = e
 
         # 2. Ha sütikkel hibát dobott, megpróbáljuk sütik nélkül
         if not info and "cookiefile" in opts:
@@ -288,10 +300,18 @@ class YouTubeExtractor:
             try:
                 with yt_dlp.YoutubeDL(opts_no_cookies) as ydl:
                     info = ydl.extract_info(cleaned_url, download=False)
-            except Exception:
-                pass
+            except Exception as e:
+                last_error = e
 
-        # 3. Ha yt-dlp teljesen elhasalt, de az URL egyetlen videó, közvetlen tartalék azonosító képzése
+        # 3. Ha az eredeti URL-lel sem ment, megpróbáljuk az eredeti nyers URL-t is
+        if not info and cleaned_url != url.strip():
+            try:
+                with yt_dlp.YoutubeDL(opts) as ydl:
+                    info = ydl.extract_info(url.strip(), download=False)
+            except Exception as e:
+                last_error = e
+
+        # 4. Ha yt-dlp nem adott eredményt, de egyetlen videó azonosító felismerhető
         if not info:
             single_id = self.extract_single_video_id(url)
             if single_id:
@@ -303,7 +323,9 @@ class YouTubeExtractor:
                     "duration": None,
                     "description": "",
                 }]
-            raise ValueError(f"Nem sikerült beolvasni az információkat a megadott URL-ről: {url}")
+
+            err_detail = f": {last_error}" if last_error else ""
+            raise ValueError(f"Nem sikerült beolvasni az információkat a megadott URL-ről ({url}){err_detail}")
 
         videos: List[Dict[str, Any]] = []
         collection_title = ""
