@@ -29,6 +29,7 @@ from transcript_downloader import (
     YouTubeExtractor,
     TranscriptFetcher,
     TranscriptFormatter,
+    TranscriptTranslator,
     CookieManager,
     sanitize_filename,
 )
@@ -52,6 +53,7 @@ class DownloadRequest(BaseModel):
     url: str
     format: str = "both"  # 'md', 'txt', 'both'
     languages: str = "hu,en"
+    target_language: str = "original"  # 'original' (nincs fordítás), 'hu', 'en', 'de', stb.
     delay_min: float = 2.0
     delay_max: float = 3.0
     include_timestamps: bool = True
@@ -123,6 +125,7 @@ def run_downloader_task(task_id: str, req: DownloadRequest, loop: asyncio.Abstra
             "url": req.url,
             "processed_at": time.strftime("%Y-%m-%d %H:%M:%S"),
             "total_videos": total_videos,
+            "target_language": req.target_language,
             "successful_count": 0,
             "blocked_count": 0,
             "no_transcript_count": 0,
@@ -134,6 +137,7 @@ def run_downloader_task(task_id: str, req: DownloadRequest, loop: asyncio.Abstra
                 "url": req.url,
                 "format": req.format,
                 "languages": req.languages,
+                "target_language": req.target_language,
                 "delay_min": req.delay_min,
                 "delay_max": req.delay_max,
                 "include_timestamps": req.include_timestamps,
@@ -170,6 +174,17 @@ def run_downloader_task(task_id: str, req: DownloadRequest, loop: asyncio.Abstra
             transcript_res = fetcher.get_transcript(vid_id)
 
             if transcript_res["status"] == "success":
+                # Ha kértek fordítást
+                if req.target_language and req.target_language.lower() not in ("original", "none", ""):
+                    t_name = TranscriptTranslator.get_language_name(req.target_language)
+                    emit_event("log", {
+                        "level": "info",
+                        "message": f"[{index}/{total_videos}] Fordítás {t_name} nyelvre..."
+                    })
+                    transcript_res = TranscriptTranslator.translate_transcript(
+                        transcript_res, req.target_language
+                    )
+
                 saved_files = []
                 if req.format in ("txt", "both"):
                     txt_path = target_folder / f"{filename_base}.txt"
@@ -196,6 +211,9 @@ def run_downloader_task(task_id: str, req: DownloadRequest, loop: asyncio.Abstra
                     "language": transcript_res.get("language"),
                     "language_code": transcript_res.get("language_code"),
                     "is_generated": transcript_res.get("is_generated"),
+                    "is_translated": transcript_res.get("is_translated", False),
+                    "original_language": transcript_res.get("original_language"),
+                    "target_language": transcript_res.get("target_language"),
                     "status": "success",
                     "files": saved_files,
                 }
@@ -434,6 +452,7 @@ async def rerun_saved_collection(req: ReRunRequest):
         url=url,
         format=orig.get("format", "both"),
         languages=orig.get("languages", "hu,en"),
+        target_language=orig.get("target_language") or data.get("target_language") or "original",
         delay_min=float(orig.get("delay_min", 2.0)),
         delay_max=float(orig.get("delay_max", 3.0)),
         include_timestamps=bool(orig.get("include_timestamps", True)),
@@ -690,6 +709,7 @@ async def get_history():
                             "blocked_count": data.get("blocked_count", 0),
                             "no_transcript_count": data.get("no_transcript_count", 0),
                             "error_count": data.get("error_count", 0),
+                            "target_language": data.get("target_language"),
                             "zip_downloaded": data.get("zip_downloaded", False),
                             "zip_downloaded_at": data.get("zip_downloaded_at"),
                             "zip_download_count": data.get("zip_download_count", 0),

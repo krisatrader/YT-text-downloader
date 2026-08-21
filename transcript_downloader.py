@@ -436,6 +436,141 @@ class TranscriptFetcher:
             return result
 
 
+class TranscriptTranslator:
+    """Átiratok és feliratok automatikus fordítása a kiválasztott célnyelvre."""
+
+    LANGUAGE_NAMES = {
+        "hu": "Magyar",
+        "en": "Angol",
+        "de": "Német",
+        "es": "Spanyol",
+        "fr": "Francia",
+        "it": "Olasz",
+        "pt": "Portugál",
+        "ru": "Orosz",
+        "zh": "Kínai",
+        "ja": "Japán",
+        "ko": "Koreai",
+        "pl": "Lengyel",
+        "ro": "Román",
+        "nl": "Holland",
+        "sv": "Svéd",
+        "tr": "Török",
+        "uk": "Ukrán",
+        "cs": "Cseh",
+        "sk": "Szlovák",
+        "hr": "Horvát",
+        "sr": "Szerb",
+    }
+
+    @classmethod
+    def get_language_name(cls, code: str) -> str:
+        if not code:
+            return "Ismeretlen"
+        clean = code.lower().split("-")[0].strip()
+        return cls.LANGUAGE_NAMES.get(clean, code.upper())
+
+    @classmethod
+    def translate_segments(
+        cls,
+        segments: List[Dict[str, Any]],
+        target_lang: str,
+        source_lang: str = "auto",
+        batch_size: int = 40,
+    ) -> List[Dict[str, Any]]:
+        """
+        Időbélyeges szegmensek kötegelt fordítása a Google Translate motorjával.
+        Megőrzi az eredeti kezdési időpontokat (start) és időtartamokat (duration).
+        """
+        if not segments or not target_lang or target_lang.lower() in ("original", "none", ""):
+            return segments
+
+        target_code = target_lang.lower().strip()
+        translated_segments = []
+        total = len(segments)
+
+        for i in range(0, total, batch_size):
+            chunk = segments[i : i + batch_size]
+            orig_texts = [s.get("text", "").strip() for s in chunk]
+            joined = "\n".join(orig_texts)
+
+            if not joined.strip():
+                translated_segments.extend(chunk)
+                continue
+
+            try:
+                url = "https://translate.googleapis.com/translate_a/single"
+                params = {
+                    "client": "gtx",
+                    "sl": source_lang,
+                    "tl": target_code,
+                    "dt": "t",
+                    "q": joined,
+                }
+                headers = {
+                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                }
+                r = requests.get(url, params=params, headers=headers, timeout=12.0)
+                if r.status_code == 200:
+                    data = r.json()
+                    full_translated = "".join([item[0] for item in data[0] if item and item[0]])
+                    trans_lines = full_translated.split("\n")
+
+                    for idx, orig_seg in enumerate(chunk):
+                        if idx < len(trans_lines) and trans_lines[idx].strip():
+                            line_txt = trans_lines[idx].strip()
+                        else:
+                            line_txt = orig_seg.get("text", "")
+
+                        translated_segments.append({
+                            "start": orig_seg.get("start", 0.0),
+                            "duration": orig_seg.get("duration", 0.0),
+                            "text": line_txt,
+                        })
+                else:
+                    translated_segments.extend(chunk)
+            except Exception:
+                translated_segments.extend(chunk)
+
+        return translated_segments
+
+    @classmethod
+    def translate_transcript(cls, transcript_data: Dict[str, Any], target_lang: str) -> Dict[str, Any]:
+        """Lefordítja a feliratot és szegmenseit a kívánt célnyelvre."""
+        if not target_lang or target_lang.lower() in ("original", "none", ""):
+            return transcript_data
+
+        target_code = target_lang.lower().strip()
+        current_code = (transcript_data.get("language_code") or "").lower().strip()
+
+        # Ha eleve a célnyelven van
+        if current_code == target_code:
+            return transcript_data
+
+        orig_lang_name = transcript_data.get("language") or cls.get_language_name(current_code) or "Eredeti"
+        target_lang_name = cls.get_language_name(target_code)
+
+        orig_segments = transcript_data.get("segments", [])
+        if not orig_segments:
+            return transcript_data
+
+        translated_segs = cls.translate_segments(orig_segments, target_code, source_lang=current_code or "auto")
+        all_text = " ".join([s["text"] for s in translated_segs])
+
+        res = dict(transcript_data)
+        res["is_translated"] = True
+        res["original_language"] = orig_lang_name
+        res["original_language_code"] = current_code
+        res["target_language"] = target_lang_name
+        res["target_language_code"] = target_code
+        res["language"] = f"{target_lang_name} (Fordítva: {orig_lang_name} ➔ {target_lang_name})"
+        res["language_code"] = target_code
+        res["segments"] = translated_segs
+        res["raw_text"] = all_text
+
+        return res
+
+
 class TranscriptFormatter:
     """Átiratok formázása szöveges (.txt) és Markdown (.md) kimenethez."""
 
@@ -447,7 +582,13 @@ class TranscriptFormatter:
         lines.append(f"URL: {video_info.get('url', 'N/A')}")
         lines.append(f"CSATORNA: {video_info.get('channel', 'N/A')}")
         type_str = "Automatikusan generált" if transcript_data.get("is_generated") else "Manuális felirat"
-        lines.append(f"ÁTIRAT TÍPUSA: {type_str} ({transcript_data.get('language', 'N/A')} [{transcript_data.get('language_code', '')}])")
+        
+        if transcript_data.get("is_translated"):
+            lines.append(f"ÁTIRAT NYELVE: {transcript_data.get('language')} [Célnyelv: {transcript_data.get('target_language', 'N/A')}]")
+            lines.append(f"EREDETI NYELV: {transcript_data.get('original_language', 'N/A')} [{transcript_data.get('original_language_code', '')}]")
+        else:
+            lines.append(f"ÁTIRAT TÍPUSA: {type_str} ({transcript_data.get('language', 'N/A')} [{transcript_data.get('language_code', '')}])")
+
         lines.append("=" * 60)
         lines.append("")
 
@@ -474,12 +615,19 @@ class TranscriptFormatter:
             lines.append(f"- **Hossz:** {format_timestamp(video_info['duration'])}")
 
         type_str = "🤖 Automatikusan generált" if transcript_data.get("is_generated") else "✍️ Manuális felirat"
-        lang_str = f"{transcript_data.get('language', 'Ismeretlen')} (`{transcript_data.get('language_code', '')}`)"
-        lines.append(f"- **Átirat típusa:** {type_str}")
-        lines.append(f"- **Nyelv:** {lang_str}")
-        lines.append(f"- **Letöltés időpontja:** {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        lines.append("\n---\n")
+        
+        if transcript_data.get("is_translated"):
+            lines.append(f"- **Átirat típusa:** {type_str}")
+            lines.append(f"- **Fordítás:** 🌐 **{transcript_data.get('target_language')}** (Eredeti nyelv: `{transcript_data.get('original_language')} [{transcript_data.get('original_language_code')}]`)")
+            lines.append(f"- **Letöltés és fordítás időpontja:** {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            lines.append(f"\n> [!NOTE]\n> Ez az átirat automatikusan le lett fordítva **{transcript_data.get('target_language')}** nyelvre az eredeti videó feliratából.\n")
+        else:
+            lang_str = f"{transcript_data.get('language', 'Ismeretlen')} (`{transcript_data.get('language_code', '')}`)"
+            lines.append(f"- **Átirat típusa:** {type_str}")
+            lines.append(f"- **Nyelv:** {lang_str}")
+            lines.append(f"- **Letöltés időpontja:** {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
+        lines.append("\n---\n")
         lines.append("## Átirat (Transcript)\n")
         if include_timestamps:
             for seg in transcript_data["segments"]:
@@ -493,7 +641,7 @@ class TranscriptFormatter:
 
 
 class DownloaderEngine:
-    """A teljes letöltési folyamatot vezérlő motor sebességkorlátozással és jelentéskészítéssel."""
+    """A teljes letöltési folyamatot vezérlő motor sebességkorlátozással, fordítással és jelentéskészítéssel."""
 
     def __init__(
         self,
@@ -501,6 +649,7 @@ class DownloaderEngine:
         output_format: str = "both",  # 'txt', 'md', 'both'
         delay_range: Tuple[float, float] = (2.0, 3.0),
         preferred_languages: Optional[List[str]] = None,
+        target_language: Optional[str] = None,
         include_timestamps: bool = True,
         limit: Optional[int] = None,
         cookies_file: Optional[str] = None,
@@ -510,6 +659,7 @@ class DownloaderEngine:
         self.output_format = output_format
         self.delay_min, self.delay_max = delay_range
         self.preferred_languages = preferred_languages or ["hu", "en"]
+        self.target_language = target_language
         self.include_timestamps = include_timestamps
         self.limit = limit
         self.cookies_file = cookies_file or CookieManager().get_valid_cookie_file()
@@ -548,13 +698,17 @@ class DownloaderEngine:
         print(f"🎯 Gyűjtemény neve: {collection_title}")
         print(f"📊 Összesen feldolgozandó videó: {total_videos} db")
         print(f"📁 Mentési mappa: {target_folder.resolve()}")
-        print(f"⏱️  Késleltetés kérések között: {self.delay_min:.1f} - {self.delay_max:.1f} mp\n")
+        print(f"⏱️  Késleltetés kérések között: {self.delay_min:.1f} - {self.delay_max:.1f} mp")
+        if self.target_language and self.target_language.lower() not in ("original", "none", ""):
+            print(f"🌐 Célnyelv / Fordítás: {TranscriptTranslator.get_language_name(self.target_language)} [{self.target_language}]")
+        print()
 
         results_summary = {
             "collection_title": collection_title,
             "url": url,
             "processed_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "total_videos": total_videos,
+            "target_language": self.target_language,
             "successful_count": 0,
             "no_transcript_count": 0,
             "blocked_count": 0,
@@ -566,6 +720,7 @@ class DownloaderEngine:
                 "url": url,
                 "format": self.output_format,
                 "languages": ",".join(self.preferred_languages),
+                "target_language": self.target_language,
                 "delay_min": self.delay_min,
                 "delay_max": self.delay_max,
                 "include_timestamps": self.include_timestamps,
@@ -780,6 +935,8 @@ class DownloaderEngine:
             print("=" * 60)
             print(f"Összes videó:     {summary['total_videos']}")
             print(f"Sikeres átirat:   {summary['successful_count']}")
+            if summary.get("target_language"):
+                print(f"Célnyelv:         {TranscriptTranslator.get_language_name(summary['target_language'])} [{summary['target_language']}]")
             print(f"YouTube Blokk 429:{summary.get('blocked_count', 0)}")
             print(f"Nincs átirat:     {summary['no_transcript_count']}")
             print(f"Hibás videó:      {summary['error_count']}")
@@ -789,51 +946,61 @@ class DownloaderEngine:
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="YouTube átiratok betűről betűre történő letöltése egyedi videóból, lejátszási listából vagy teljes csatornából.",
-        formatter_class=argparse.RawTextHelpFormatter,
+        description="YouTube Átirat Letöltő Pro — Teljes csatornák, lejátszási listák és videók átiratainak letöltése és fordítása."
     )
     parser.add_argument(
         "url",
         nargs="?",
-        default=None,
-        help="YouTube URL (videó, lejátszási lista vagy csatorna hivatkozás)",
+        help="YouTube hivatkozás (egyedi videó, lejátszási lista vagy @csatorna URL)",
     )
     parser.add_argument(
-        "-o", "--output-dir",
+        "-o",
+        "--output-dir",
         default="transcripts_output",
-        help="Kimeneti célkönyvtár (alapértelmezett: transcripts_output)",
+        help="Kimeneti könyvtár elérési útja (alapértelmezett: transcripts_output)",
     )
     parser.add_argument(
-        "-f", "--format",
-        choices=["md", "txt", "both"],
+        "-f",
+        "--format",
+        choices=["txt", "md", "both"],
         default="both",
-        help="Kimeneti formátum: 'md' (Markdown), 'txt' (Szöveges), vagy 'both' (Mindkettő) (alapértelmezett: both)",
+        help="Kimeneti fájlformátum: txt, md, vagy both (alapértelmezett: both)",
     )
     parser.add_argument(
-        "-n", "--limit",
+        "-n",
+        "--limit",
         type=int,
         default=None,
-        help="Legfeljebb ennyi videó feldolgozása (hasznos nagy csatornáknál, alapértelmezett: összes)",
+        help="Feldolgozandó videók maximális száma (alapértelmezett: összes)",
     )
     parser.add_argument(
-        "-l", "--languages",
+        "-l",
+        "--languages",
         default="hu,en",
-        help="Preferált nyelvkódok vesszővel elválasztva (alapértelmezett: 'hu,en')",
+        help="Preferált nyelvkódok vesszővel elválasztva (pl. 'hu,en', alapértelmezett: hu,en)",
+    )
+    parser.add_argument(
+        "-t",
+        "--target-lang",
+        "--translate-to",
+        dest="target_lang",
+        default=None,
+        help="Átirat automatikus lefordítása a megadott célnyelvre (pl. hu, en, de, es, fr, it)",
     )
     parser.add_argument(
         "--delay",
         default="2.0-3.0",
-        help="Késleltetési tartomány másodpercben a lekérések között (pl. '2.0-3.0', alapértelmezett: 2.0-3.0)",
+        help="Kérések közötti késleltetési másodperctartomány (pl. '2.0-3.0', alapértelmezett: 2.0-3.0 mp)",
     )
     parser.add_argument(
         "--no-timestamps",
         action="store_true",
-        help="Időbélyegek elhagyása (csak folyamatos szöveg mentése)",
+        help="Időbélyegek elhagyása a kimeneti fájlokból",
     )
     parser.add_argument(
         "--cookies",
         default=None,
-        help="Netscape formátumú cookies.txt fájl elérési útja (megkerüli a YouTube HTTP 429 blokkolást)",
+        help="Netscape formátumú cookies.txt fájl elérési útja",
     )
     parser.add_argument(
         "--cookies-from-browser",
@@ -886,6 +1053,7 @@ def main():
         output_format=args.format,
         delay_range=(delay_min, delay_max),
         preferred_languages=languages,
+        target_language=args.target_lang,
         include_timestamps=not args.no_timestamps,
         limit=args.limit,
         cookies_file=args.cookies,

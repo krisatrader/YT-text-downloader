@@ -151,9 +151,63 @@ class TestTranscriptDownloader(unittest.TestCase):
             self.assertIn("TranscriptsDisabled", md_content)
             self.assertIn("Hibára futott videók", md_content)
             self.assertIn("Privát videó", md_content)
-
         finally:
             shutil.rmtree(temp_dir)
+
+    def test_transcript_translator_and_formatting(self):
+        from transcript_downloader import TranscriptTranslator
+
+        # Nyelvnév lekérdezése
+        self.assertEqual(TranscriptTranslator.get_language_name("hu"), "Magyar")
+        self.assertEqual(TranscriptTranslator.get_language_name("en"), "Angol")
+        self.assertEqual(TranscriptTranslator.get_language_name("de"), "Német")
+
+        # Szöveg fordítás mock / offline teszt
+        raw_res = {
+            "status": "success",
+            "language": "English",
+            "language_code": "en",
+            "is_generated": True,
+            "segments": [
+                {"start": 0.0, "duration": 2.0, "text": "Hello world"},
+                {"start": 2.5, "duration": 2.0, "text": "This is a test"},
+            ],
+            "raw_text": "Hello world This is a test",
+        }
+
+        # Format translated transcript
+        translated_res = {
+            "status": "success",
+            "language": "Magyar",
+            "language_code": "hu",
+            "is_generated": True,
+            "is_translated": True,
+            "original_language": "English",
+            "original_language_code": "en",
+            "target_language": "Magyar",
+            "target_language_code": "hu",
+            "segments": [
+                {"start": 0.0, "duration": 2.0, "text": "Helló Világ"},
+                {"start": 2.5, "duration": 2.0, "text": "Ez egy teszt"},
+            ],
+            "raw_text": "Helló Világ Ez egy teszt",
+        }
+
+        video_info = {
+            "title": "Angol Oktatóvideó",
+            "url": "https://www.youtube.com/watch?v=mock_id",
+            "channel": "English Channel",
+            "id": "mock_id",
+        }
+
+        txt_out = TranscriptFormatter.format_as_txt(video_info, translated_res, include_timestamps=True)
+        self.assertIn("ÁTIRAT NYELVE: Magyar [Célnyelv: Magyar]", txt_out)
+        self.assertIn("EREDETI NYELV: English [en]", txt_out)
+        self.assertIn("[00:00] Helló Világ", txt_out)
+
+        md_out = TranscriptFormatter.format_as_markdown(video_info, translated_res, include_timestamps=True)
+        self.assertIn("**Fordítás:** 🌐 **Magyar**", md_out)
+        self.assertIn("Ez az átirat automatikusan le lett fordítva", md_out)
 
 
 if __name__ == "__main__":

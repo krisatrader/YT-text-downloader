@@ -69,6 +69,22 @@ Parancssorban:
 
 ---
 
+## 🌐 Automatikus Célnyelvre Fordítás (Target Language Translation)
+
+Az alkalmazás képes bármely nyelven elérhető YouTube átiratot másodpercek alatt **automatikusan lefordítani a kívánt célnyelvre** (pl. magyar, angol, német, spanyol stb.), miközben **az időbélyegek szinkronitása 100%-ban megmarad**.
+
+- **Webes felületen**: A felület tetején válaszd ki a kívánt célnyelvet a legördülő menüből (pl. 🇭🇺 Magyarra fordítás).
+- **Parancssorban (CLI)**:
+  ```bash
+  # Angol videó letöltése és automatikus lefordítása magyarra:
+  ./venv/bin/python transcript_downloader.py "https://www.youtube.com/watch?v=VIDEÓ_ID" -t hu
+
+  # Lejátszási lista fordítása németre:
+  ./venv/bin/python transcript_downloader.py "https://www.youtube.com/playlist?list=PLAYLIST_ID" -t de
+  ```
+
+---
+
 ## ⚙️ CLI Kapcsolók Referenciája
 
 | Kapcsoló | Típus | Alapértelmezett | Leírás |
@@ -77,7 +93,8 @@ Parancssorban:
 | `-o, --output-dir` | Szöveg | `transcripts_output` | A kimeneti főkönyvtár elérési útja. |
 | `-f, --format` | `md` / `txt` / `both` | `both` | Mentési fájlformátum (.md, .txt vagy mindkettő). |
 | `-n, --limit` | Egész szám | `None` (összes) | A feldolgozandó videók maximális száma. |
-| `-l, --languages` | Vesszővel elválasztott | `hu,en` | Preferált nyelvkódok sorrendje (pl. `hu,en`). |
+| `-l, --languages` | Vesszővel elválasztott | `hu,en` | Preferált forrásnyelv-kódok sorrendje (pl. `hu,en`). |
+| `-t, --target-lang` | Nyelvkód | `None` | Automatikus lefordítás a célnyelvre (pl. `hu`, `en`, `de`, `es`, `fr`). |
 | `--delay` | Tartomány | `2.0-3.0` | Késleltetési másodperctartomány a kérések között. |
 | `--no-timestamps` | Zászló | `False` | Időbélyegek elhagyása a szövegből. |
 | `--cookies` | Fájl útvonal | `None` | `cookies.txt` fájl elérési útja. |
