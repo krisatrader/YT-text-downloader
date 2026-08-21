@@ -1,31 +1,28 @@
 # YouTube Átirat Letöltő (YouTube Transcript Downloader Pro)
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/krisatrader/YT-text-downloader/blob/main/youtube_transcript_downloader_colab.ipynb)
+
 Professzionális, automatizált megoldás YouTube videók, komplett lejátszási listák és teljes csatornák manuális vagy automatikusan generált átiratainak (feliratainak) betűről betűre történő letöltéséhez `.txt` és `.md` formátumban.
 
 Az alkalmazás rendelkezik **parancssori (CLI)** és **modern böngészős kezelőfelülettel (Web UI)** is, beépített **YouTube sütikezelővel**, **anti-bot sebességkorlátozással**, **letöltöttségi állapotkövetéssel** és **mentett gyűjtemények újrafuttatási központjával**.
 
 ---
 
-## 🌟 Főbb Képességek
+## ⚡ 1-Kattintásos Futtatás Ingyen (Google Colab)
 
-- **Univerzális bemenet**: Egyedi videók, Shorts videók, komplett lejátszási listák és teljes YouTube csatornák (`@csatorna`).
-- **Betűről betűre átirat**: Manuális feliratok vagy YouTube által automatikusan generált átiratok letöltése.
-- **Kettős kimeneti formátum**:
-  - `.md` (Markdown): Strukturált formátum videó metaadatokkal (cím, URL, csatorna, időtartam) és választható időbélyegekkel (`[00:01:23]`).
-  - `.txt` (Plain text): Tiszta szöveg egyszerűbb feldolgozáshoz vagy LLM promptokhoz.
-- **🍪 Beépített YouTube Sütikezelő (Cookies Manager)**:
-  - 1 kattintásos sütibegyűjtés böngészőkből (Chrome, Firefox, Safari, Brave, Edge).
-  - `cookies.txt` fájl feltöltése és perzisztens tárolása a YouTube HTTP 429 blokkolásainak kivédésére.
-- **⬇️ Letöltött ZIP-ek Nyomonkövetése**:
-  - Automatikusan megjelöli a már letöltött ZIP csomagokat (`✅ ZIP Letöltve` dátumbélyegzővel).
-- **🔄 Mentett Gyűjtemények Hub & Újrafuttatás**:
-  - A már letöltött gyűjtemények átiratai bármikor újra letölthetők ZIP-ben vagy elolvashatók helyben a felületen.
-  - **1 kattintásos újrafuttatás** az eredeti beállításokkal, anélkül, hogy a linkeket újra be kellene másolni!
-- **⏱️ YouTube Anti-Bot Védelem**: Konfigurálható 2–3 másodperces véletlenszerű szünet (jitter) a kérések között.
+Nem szeretnél semmit sem telepíteni a gépedre? Futtasd a Google felhőjéből:
+
+👉 **[Kattints ide a Google Colab Notebook megnyitásához](https://colab.research.google.com/github/krisatrader/YT-text-downloader/blob/main/youtube_transcript_downloader_colab.ipynb)**
+
+A Colab Notebookban:
+1. Kattints a **1. Előkészítés** cella lejátszás gombjára.
+2. Válassz:
+   - **2/A**: Elindítja a Webes felületet egy publikus biztonságos linken.
+   - **2/B**: Kitöltöd az űrlapot a videó/playlist linkkel, és azonnal automatikusan letölti a kész ZIP csomagot a gépedre!
 
 ---
 
-## 🚀 Indítás
+## 🚀 Helyi Indítás (Saját gépen)
 
 ### Webes felület (Ajánlott)
 ```bash
