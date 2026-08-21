@@ -309,7 +309,9 @@ def run_downloader_task(task_id: str, req: DownloadRequest, loop: asyncio.Abstra
                     })
                     time.sleep(pause_time)
                 else:
-                    delay_sec = random.uniform(req.delay_min, req.delay_max)
+                    safe_delay_min = max(3.0, float(req.delay_min))
+                    safe_delay_max = max(safe_delay_min, float(req.delay_max))
+                    delay_sec = random.uniform(safe_delay_min, safe_delay_max)
                     emit_event("waiting", {
                         "delay_seconds": round(delay_sec, 2),
                         "next_index": index + 1,

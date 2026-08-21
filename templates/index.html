@@ -229,8 +229,8 @@
                       <span id="delayLabel" class="text-[10px] text-emerald-400 font-mono">3.0 - 5.0 mp</span>
                     </label>
                     <div class="grid grid-cols-2 gap-2">
-                      <input type="number" id="inputDelayMin" step="0.1" min="0.5" max="30" value="3.0" class="w-full px-2 py-1 bg-zinc-900 border border-zinc-700 rounded-lg text-xs text-center" title="Min késleltetés">
-                      <input type="number" id="inputDelayMax" step="0.1" min="1.0" max="30" value="5.0" class="w-full px-2 py-1 bg-zinc-900 border border-zinc-700 rounded-lg text-xs text-center" title="Max késleltetés">
+                      <input type="number" id="inputDelayMin" step="0.5" min="3.0" max="60" value="3.0" class="w-full px-2 py-1 bg-zinc-900 border border-zinc-700 rounded-lg text-xs text-center" title="Min késleltetés (minimum 3.0 mp)" oninput="validateDelay()" onblur="enforceDelayBounds()">
+                      <input type="number" id="inputDelayMax" step="0.5" min="3.0" max="60" value="5.0" class="w-full px-2 py-1 bg-zinc-900 border border-zinc-700 rounded-lg text-xs text-center" title="Max késleltetés" oninput="validateDelay()" onblur="enforceDelayBounds()">
                     </div>
                     <span class="text-[10px] text-zinc-400">Biztonságos háttérben futás + 20 videónként pihenő.</span>
                   </div>
@@ -977,6 +977,24 @@
       } catch (err) {
         console.warn("Clipboard read error:", err);
       }
+    function validateDelay() {
+      const minEl = document.getElementById('inputDelayMin');
+      const maxEl = document.getElementById('inputDelayMax');
+      let minVal = parseFloat(minEl.value) || 3.0;
+      let maxVal = parseFloat(maxEl.value) || 5.0;
+      document.getElementById('delayLabel').innerText = `${minVal.toFixed(1)} - ${maxVal.toFixed(1)} mp`;
+    }
+
+    function enforceDelayBounds() {
+      const minEl = document.getElementById('inputDelayMin');
+      const maxEl = document.getElementById('inputDelayMax');
+      let minVal = parseFloat(minEl.value) || 3.0;
+      let maxVal = parseFloat(maxEl.value) || 5.0;
+      if (minVal < 3.0) minVal = 3.0;
+      if (maxVal < minVal) maxVal = minVal;
+      minEl.value = minVal.toFixed(1);
+      maxEl.value = maxVal.toFixed(1);
+      document.getElementById('delayLabel').innerText = `${minVal.toFixed(1)} - ${maxVal.toFixed(1)} mp`;
     }
 
     async function startDownload(e) {
@@ -992,8 +1010,10 @@
         targetLanguage = document.getElementById('inputCustomTargetLang').value.trim() || 'original';
       }
 
-      const delayMin = parseFloat(document.getElementById('inputDelayMin').value) || 3.0;
-      const delayMax = parseFloat(document.getElementById('inputDelayMax').value) || 5.0;
+      let delayMin = parseFloat(document.getElementById('inputDelayMin').value) || 3.0;
+      let delayMax = parseFloat(document.getElementById('inputDelayMax').value) || 5.0;
+      if (delayMin < 3.0) delayMin = 3.0;
+      if (delayMax < delayMin) delayMax = delayMin;
       const includeTimestamps = document.getElementById('checkTimestamps').checked;
       const limitVal = document.getElementById('inputLimit').value.trim();
       const limit = limitVal ? parseInt(limitVal, 10) : null;

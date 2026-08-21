@@ -801,7 +801,10 @@ class DownloaderEngine:
     ):
         self.output_dir = Path(output_dir)
         self.output_format = output_format
-        self.delay_min, self.delay_max = delay_range
+        # Biztonsági alsó határ: minimum 3.0 másodperc a YouTube 429 botvédelem megelőzésére
+        d_min, d_max = delay_range
+        self.delay_min = max(3.0, float(d_min))
+        self.delay_max = max(self.delay_min, float(d_max))
         self.preferred_languages = preferred_languages or ["hu", "en"]
         self.target_language = target_language
         self.include_timestamps = include_timestamps
